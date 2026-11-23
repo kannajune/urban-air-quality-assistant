@@ -1,0 +1,26 @@
+{
+  "name": "urban-air-quality-assistant",
+  "version": "1.0.0",
+  "description": "GenAI assistant that turns live air quality data into a household plan for smog days.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^5.1.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.0.0"
+  }
+}

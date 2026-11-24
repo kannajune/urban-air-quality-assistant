@@ -10,10 +10,14 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230b6e4f'/%3E%3Cpath d='M8 13h12a3 3 0 1 0-3-3M8 18h15a3 3 0 1 1-3 3' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/styles.css">
   <link rel="modulepreload" href="/app.js">
+  <link rel="modulepreload" href="/api.js">
+  <link rel="modulepreload" href="/dom.js">
+  <link rel="modulepreload" href="/render.js">
   <link rel="modulepreload" href="/view.js">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
+  <noscript><p class="noscript">This assistant needs JavaScript to read live air quality and build your plan. Please turn it on and reload the page.</p></noscript>
 
   <header class="hero" id="hero">
     <svg class="scene" viewBox="0 0 1200 420" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
@@ -72,7 +76,7 @@
       <p class="lede">Tell us where you live and how your day runs. You get the live air quality reading and a plan of small changes, each with its direct impact explained.</p>
       <div class="hero-actions">
         <a class="button on-dark" href="#form-heading">Build my plan</a>
-        <p class="hero-hint">Hover over the skyline to clear the air.</p>
+        <p class="hero-hint">Hover over the skyline, or tab to the button, to clear the air.</p>
       </div>
       <ul class="hero-facts">
         <li><strong>Live</strong> readings for any city</li>
@@ -225,6 +229,10 @@
         <section class="card detail" aria-labelledby="forecast-heading">
           <h3 id="forecast-heading">Next 24 hours</h3>
           <div id="forecast" class="forecast" role="img" aria-label="Hourly AQI forecast"></div>
+          <details class="table-toggle">
+            <summary>Show the forecast as a table</summary>
+            <div id="forecast-table"></div>
+          </details>
           <dl class="hours">
             <div><dt>Cleanest hour</dt><dd id="cleanest"></dd></div>
             <div><dt>Worst hour</dt><dd id="peak"></dd></div>

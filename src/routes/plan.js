@@ -1,4 +1,5 @@
-import { fetchAirQuality, geocodeCity, reverseGeocode } from '../lib/airquality.js';
+import { fetchAirQuality } from '../lib/airquality.js';
+import { geocodeCity, reverseGeocode } from '../lib/geocode.js';
 import { TTL, cacheOf, cached, digest } from '../lib/cache.js';
 import { buildFallbackPlan } from '../lib/fallback.js';
 import { json, readJsonBody } from '../lib/http.js';

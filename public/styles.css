@@ -277,26 +277,31 @@ h1 {
 
 /* Hovering the hero, or getting a plan, clears the smog and brings the colour back. */
 .hero:hover,
+.hero:focus-within,
 .has-plan .hero {
   --smog: 0.08;
 }
 
 .hero:hover .sun,
+.hero:focus-within .sun,
 .has-plan .hero .sun {
   opacity: 1;
 }
 
 .hero:hover .sun-glow,
+.hero:focus-within .sun-glow,
 .has-plan .hero .sun-glow {
   opacity: 0.32;
 }
 
 .hero:hover .tree circle,
+.hero:focus-within .tree circle,
 .has-plan .hero .tree circle {
   opacity: 1;
 }
 
 .hero:hover .leaf,
+.hero:focus-within .leaf,
 .has-plan .hero .leaf {
   opacity: 0.9;
 }
@@ -952,7 +957,7 @@ input[aria-invalid='true'] {
 .how-toggle {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
+  min-height: 2.75rem;
   color: var(--accent);
   font-size: 0.9rem;
   font-weight: 700;
@@ -1051,6 +1056,75 @@ input[aria-invalid='true'] {
   }
 
   .hero-hint {
+    display: none;
+  }
+}
+
+/* ---------- Data table behind the forecast chart ---------- */
+
+.table-toggle {
+  margin-bottom: 0.8rem;
+}
+
+.table-toggle summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.data-table caption {
+  padding: 0.3rem 0;
+  font-weight: 700;
+  text-align: left;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.noscript {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  color: var(--error);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---------- Windows high contrast and other forced colour modes ---------- */
+
+@media (forced-colors: active) {
+  .card,
+  .band,
+  .chip,
+  .choice,
+  .button {
+    border: 1px solid CanvasText;
+  }
+
+  /* These convey a value through colour, so they keep their own colours. */
+  .meter,
+  .bar,
+  .fill,
+  .dot.is-on,
+  .aqi-value {
+    forced-color-adjust: none;
+  }
+
+  .scene {
     display: none;
   }
 }

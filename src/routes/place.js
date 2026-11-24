@@ -1,4 +1,4 @@
-import { reverseGeocode } from '../lib/airquality.js';
+import { reverseGeocode } from '../lib/geocode.js';
 import { TTL, cacheOf, cached } from '../lib/cache.js';
 import { json, readJsonBody } from '../lib/http.js';
 import { limitVisitor } from '../lib/limits.js';

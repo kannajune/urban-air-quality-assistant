@@ -78,12 +78,16 @@ Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air
 
 ## Accessibility
 
+- Checked automatically: the axe engine runs over the page in four states (first load, full plan, everything expanded, field error) and must report no WCAG 2.2 AA or best practice violations
 - Semantic landmarks, one `h1`, ordered headings, a skip link
 - Every control has a visible label; grouped options use `fieldset` and `legend`
-- Status and errors are announced through live regions, and focus moves to the results
-- AQI is shown as a number and a text label, never by colour alone
+- Progress is announced politely and errors as alerts; focus moves to the results
+- AQI is shown as a number and a text label, never by colour alone; the current band is marked for screen readers
+- The forecast chart has a text summary and a full data table alternative
+- Nothing depends on hover: the header effect also responds to keyboard focus
 - Colour contrast meets WCAG AA in light and dark themes; touch targets are at least 44 px
-- Works with keyboard only, at 200 percent zoom and on a phone; respects reduced motion
+- Works with keyboard only, at 200 percent zoom, on a phone, in forced colour modes, and says so plainly when JavaScript is off
+- All motion is switched off for visitors who ask for reduced motion
 
 ## Run it locally
 
@@ -100,7 +104,7 @@ Open http://localhost:8787. No keys or environment files are needed.
 ## Test
 
 ```bash
-npm test             # 201 unit and integration tests, no network needed
+npm test             # 266 tests, no network needed
 npm run test:coverage
 npm run lint
 npm run typecheck     # type checks the JavaScript through its JSDoc types
@@ -108,7 +112,15 @@ npm run format:check
 npm run check         # all of the above
 ```
 
-Tests cover input validation, AQI banding, the upstream clients, the model call, the fallback plan, every Worker route, rate limiting and the view helpers. Coverage thresholds are enforced in `vitest.config.js` and in CI.
+The tests run at five levels, with coverage thresholds enforced in `vitest.config.js` and in CI:
+
+| Level         | What it covers                                                                         |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Unit          | Validation, AQI bands, forecast, cache, limiter, plan checking, view helpers           |
+| Integration   | Every Worker route end to end, with faked upstream services and model                  |
+| Browser       | The real page markup in jsdom: form, location, rendering, errors, cancelling a request |
+| Accessibility | The axe engine over four states of the page, against WCAG 2.2 AA                       |
+| Repository    | No secrets, strict content security policy, header parity, repository size             |
 
 ## Deploy
 
@@ -120,11 +132,13 @@ npm run deploy
 ## Project layout
 
 ```
-public/        Static front end (HTML, CSS, ES modules)
+public/        Static front end: app (wiring), api (calls), render (drawing), view (pure
+               formatting), dom (helpers), styles, and edge headers
 src/index.js   Worker entry: routing and error handling
 src/routes/    One file per endpoint: plan, place
-src/lib/       Validation, air quality client, Workers AI client, prompt, fallback plan,
+src/lib/       Validation, geocoding, air quality, Workers AI client, prompt, fallback plan,
                edge cache, rate limits, HTTP helpers, shared types
+docs/          Architecture and design decisions
 test/          Vitest suites
 ```
 
@@ -140,3 +154,5 @@ Plans are general guidance, not medical advice.
 ## License
 
 MIT
+
+See also [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [CHANGELOG.md](CHANGELOG.md).

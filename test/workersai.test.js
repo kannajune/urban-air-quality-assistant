@@ -90,4 +90,14 @@ describe('generateWithWorkersAi', () => {
     };
     expect(await generateWithWorkersAi(ai, undefined, '{}')).toBeNull();
   });
+
+  it('gives up on a model that does not answer in time', async () => {
+    vi.useFakeTimers();
+    const ai = { run: () => new Promise(() => {}) };
+    const pending = generateWithWorkersAi(ai, undefined, '{}');
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(await pending).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });

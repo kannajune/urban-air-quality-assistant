@@ -6,8 +6,9 @@ export default defineConfig({
     include: ['test/**/*.test.js'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.js', 'public/view.js'],
-      thresholds: { lines: 90, functions: 90, branches: 80, statements: 90 },
+      include: ['src/**/*.js', 'public/**/*.js'],
+      exclude: ['src/lib/types.js'],
+      thresholds: { lines: 97, functions: 97, branches: 92, statements: 97 },
     },
   },
 });

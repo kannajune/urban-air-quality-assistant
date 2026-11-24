@@ -72,6 +72,48 @@ export function validateCoordinates(input) {
 }
 
 /**
+ * Coordinates are optional, but must come as a pair.
+ * @param {Record<string, unknown>} body
+ * @returns {{latitude: number|null, longitude: number|null}}
+ */
+function optionalCoordinates(body) {
+  const latitude = coordinate(body.latitude, -90, 90);
+  const longitude = coordinate(body.longitude, -180, 180);
+  if ((latitude === null) !== (longitude === null)) {
+    throw new HttpError(400, 'Send both latitude and longitude, or neither.');
+  }
+  return { latitude, longitude };
+}
+
+/**
+ * A trimmed city name. It may be empty only when coordinates are given instead.
+ * @param {unknown} value
+ * @param {boolean} required
+ * @returns {string}
+ */
+function cityOf(value, required) {
+  const city = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+  const missing = required && !city;
+  if (missing || (city && !CITY_PATTERN.test(city))) {
+    throw new HttpError(400, 'Enter a city or town name using letters only.');
+  }
+  return city;
+}
+
+/**
+ * The household options, checked against the allowed list and with repeats removed.
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+function householdOf(value) {
+  const list = value === undefined ? [] : value;
+  if (!Array.isArray(list) || list.length > OPTIONS.household.length) {
+    throw new HttpError(400, 'Choose valid household options.');
+  }
+  return [...new Set(list.map((item) => pick(item, OPTIONS.household, 'household')))];
+}
+
+/**
  * Validate and normalise the request for a plan.
  * Unknown fields are dropped, so nothing unexpected reaches the model.
  * @param {unknown} input
@@ -83,35 +125,16 @@ export function validatePlanRequest(input) {
   }
   const body = /** @type {Record<string, unknown>} */ (input);
 
-  const latitude = coordinate(body.latitude, -90, 90);
-  const longitude = coordinate(body.longitude, -180, 180);
-  if ((latitude === null) !== (longitude === null)) {
-    throw new HttpError(400, 'Send both latitude and longitude, or neither.');
-  }
-
-  const city = typeof body.city === 'string' ? body.city.trim().replace(/\s+/g, ' ') : '';
-  if (latitude === null && !CITY_PATTERN.test(city)) {
-    throw new HttpError(400, 'Enter a city or town name using letters only.');
-  }
-  if (city && !CITY_PATTERN.test(city)) {
-    throw new HttpError(400, 'Enter a city or town name using letters only.');
-  }
-
-  const householdInput = body.household === undefined ? [] : body.household;
-  if (!Array.isArray(householdInput) || householdInput.length > OPTIONS.household.length) {
-    throw new HttpError(400, 'Choose valid household options.');
-  }
-  const household = [...new Set(householdInput.map((item) => pick(item, OPTIONS.household, 'household')))];
-
+  const { latitude, longitude } = optionalCoordinates(body);
   return {
-    city,
+    city: cityOf(body.city, latitude === null),
     latitude,
     longitude,
     commute: pick(body.commute, OPTIONS.commute, 'commute'),
     cookingFuel: pick(body.cookingFuel, OPTIONS.cookingFuel, 'cooking fuel'),
     outdoorTime: pick(body.outdoorTime, OPTIONS.outdoorTime, 'time outdoors'),
     budget: pick(body.budget, OPTIONS.budget, 'budget'),
-    household,
+    household: householdOf(body.household),
     hasPurifier: body.hasPurifier === true,
   };
 }

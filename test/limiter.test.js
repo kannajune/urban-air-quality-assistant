@@ -107,6 +107,22 @@ describe('RateLimiter', () => {
     expect(await instance.check('a', true, false)).toMatchObject({ allowed: true, ai: false });
   });
 
+  it('keeps memory bounded under a flood of different addresses', async () => {
+    const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1' });
+    for (let i = 0; i < 5001; i += 1) await instance.check(`visitor-${i}`, false);
+    expect(instance.visitors.size).toBe(5000);
+    // The oldest entry was dropped to make room, so that visitor starts a fresh count.
+    expect(instance.visitors.has('visitor-0')).toBe(false);
+    expect(instance.visitors.has('visitor-5000')).toBe(true);
+  });
+
+  it('treats a missing visitor key as one shared visitor', async () => {
+    const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1' });
+    const ask = () => instance.fetch(new Request('https://limiter.internal/check', { method: 'POST', body: '{}' }));
+    expect((await (await ask()).json()).allowed).toBe(true);
+    expect((await (await ask()).json()).allowed).toBe(false);
+  });
+
   it('answers over its fetch entry point', async () => {
     const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1' });
     const ask = () =>

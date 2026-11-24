@@ -1,12 +1,11 @@
+/**
+ * Live air quality: the reading for a place, its band, and the hours ahead.
+ */
 import { HttpError, fetchWithTimeout } from './http.js';
 
-const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const AIR_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
-const REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
 /** How far ahead the forecast looks. */
 const FORECAST_HOURS = 24;
-// OpenStreetMap asks every client to identify itself.
-const APP_USER_AGENT = 'urban-air-quality-assistant/1.0 (hackathon project)';
 
 /** US AQI bands with plain language meaning. Upper bound is inclusive. */
 export const AQI_BANDS = Object.freeze([
@@ -49,107 +48,61 @@ export function classifyAqi(aqi) {
 }
 
 /**
- * Resolve a city name to coordinates.
- * @param {string} city
- * @param {typeof fetch} fetchImpl
- * @returns {Promise<{name: string, latitude: number, longitude: number}>}
- */
-export async function geocodeCity(city, fetchImpl) {
-  const url = `${GEOCODE_URL}?${new URLSearchParams({ name: city, count: '1', language: 'en', format: 'json' })}`;
-  const response = await fetchWithTimeout(fetchImpl, url);
-  if (!response.ok) {
-    throw new HttpError(502, 'The location service is not responding. Try again shortly.');
-  }
-  const data = await response.json();
-  const match = data?.results?.[0];
-  if (!match || !Number.isFinite(match.latitude) || !Number.isFinite(match.longitude)) {
-    throw new HttpError(404, 'That place was not found. Check the spelling or try a nearby city.');
-  }
-  const parts = [match.name, match.admin1, match.country].filter(Boolean);
-  return { name: parts.join(', '), latitude: match.latitude, longitude: match.longitude };
-}
-
-/**
- * Turn coordinates into a readable place name with OpenStreetMap Nominatim.
- * This is a nicety, so any failure returns null instead of failing the request.
- * @param {number} latitude
- * @param {number} longitude
- * @param {typeof fetch} fetchImpl
- * @returns {Promise<string|null>}
- */
-export async function reverseGeocode(latitude, longitude, fetchImpl) {
-  const query = new URLSearchParams({
-    format: 'jsonv2',
-    lat: String(latitude),
-    lon: String(longitude),
-    zoom: '12',
-    addressdetails: '1',
-    'accept-language': 'en',
-  });
-  try {
-    const response = await fetchWithTimeout(
-      fetchImpl,
-      `${REVERSE_URL}?${query}`,
-      { headers: { 'User-Agent': APP_USER_AGENT } },
-      5000,
-    );
-    if (!response.ok) return null;
-    const address = (await response.json())?.address || {};
-    const locality = address.suburb || address.neighbourhood || address.village || address.town;
-    const city = address.city || address.town || address.county || address.state_district;
-    const parts = [
-      ...new Set([locality, city, address.state, address.country].filter((part) => typeof part === 'string' && part)),
-    ];
-    const name = parts
-      .join(', ')
-      .replace(/[<>\u0000-\u001f]/g, ' ')
-      .slice(0, 120);
-    return name || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Pick the worst hour in the next 24 hours from the hourly forecast.
- * @param {{time?: string[], us_aqi?: (number|null)[]}} hourly
+ * @param {{time?: string[], us_aqi?: (number|null)[]}|undefined} hourly
  * @param {string} nowIso
  * @returns {{time: string, aqi: number}|null}
  */
 export function worstUpcomingHour(hourly, nowIso) {
-  const times = hourly?.time || [];
+  return extremeHour(upcomingReadings(hourly, nowIso), (candidate, best) => candidate.aqi > best.aqi);
+}
+
+/**
+ * The next 24 hours of the forecast, in order, leaving out hours with no reading.
+ * @param {{time?: string[], us_aqi?: (number|null)[]}|undefined} hourly
+ * @param {string} nowIso
+ * @returns {{time: string, aqi: number}[]}
+ */
+function upcomingReadings(hourly, nowIso) {
   const values = hourly?.us_aqi || [];
-  /** @type {{time: string, aqi: number}|null} */
-  let worst = null;
-  let seen = 0;
-  for (let i = 0; i < times.length && seen < FORECAST_HOURS; i += 1) {
-    if (times[i] < nowIso) continue;
-    seen += 1;
-    const aqi = values[i];
-    if (typeof aqi === 'number' && Number.isFinite(aqi) && (worst === null || aqi > worst.aqi)) {
-      worst = { time: times[i], aqi };
-    }
-  }
-  return worst;
+  return (hourly?.time || [])
+    .map((time, index) => ({ time, aqi: values[index] }))
+    .filter((hour) => hour.time >= nowIso)
+    .slice(0, FORECAST_HOURS)
+    .filter(/** @returns {hour is {time: string, aqi: number}} */ (hour) => isReading(hour.aqi));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is number}
+ */
+function isReading(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * The hour that beats every other under the given comparison, or null for an empty list.
+ * @template {{aqi: number}} T
+ * @param {T[]} hours
+ * @param {(candidate: T, best: T) => boolean} beats
+ * @returns {T|null}
+ */
+function extremeHour(hours, beats) {
+  return hours.reduce((best, hour) => (best === null || beats(hour, best) ? hour : best), /** @type {T|null} */ (null));
 }
 
 /**
  * List the next 24 hourly readings, each with its band, for the forecast chart.
- * @param {{time?: string[], us_aqi?: (number|null)[]}} hourly
+ * @param {{time?: string[], us_aqi?: (number|null)[]}|undefined} hourly
  * @param {string} nowIso
- * @returns {{time: string, aqi: number, level: string}[]}
+ * @returns {import('./types.js').ForecastHour[]}
  */
 export function upcomingHours(hourly, nowIso) {
-  const times = hourly?.time || [];
-  const values = hourly?.us_aqi || [];
-  /** @type {import('./types.js').ForecastHour[]} */
-  const hours = [];
-  for (let i = 0; i < times.length && hours.length < FORECAST_HOURS; i += 1) {
-    const aqi = values[i];
-    if (times[i] < nowIso || typeof aqi !== 'number' || !Number.isFinite(aqi)) continue;
-    hours.push({ time: times[i], aqi: Math.round(aqi), level: classifyAqi(aqi).level });
-  }
-  return hours;
+  return upcomingReadings(hourly, nowIso).map((hour) => ({
+    time: hour.time,
+    aqi: Math.round(hour.aqi),
+    level: classifyAqi(hour.aqi).level,
+  }));
 }
 
 /**
@@ -173,20 +126,23 @@ export async function fetchAirQuality(latitude, longitude, fetchImpl) {
     throw new HttpError(502, 'The air quality service is not responding. Try again shortly.');
   }
   const data = await response.json();
-  const current = data?.current;
-  if (!current || !Number.isFinite(current.us_aqi)) {
+  if (!isReading(data?.current?.us_aqi)) {
     throw new HttpError(502, 'No air quality reading is available for this place right now.');
   }
+  return toReading(data);
+}
+
+/**
+ * Shape the upstream reply into the reading the rest of the app uses.
+ * @param {{current: Record<string, any>, hourly?: {time?: string[], us_aqi?: (number|null)[]}, timezone?: string}} data
+ * @returns {import('./types.js').AirReading}
+ */
+function toReading(data) {
+  const { current } = data;
+  const now = current.time || '';
   const band = classifyAqi(current.us_aqi);
-  const peak = worstUpcomingHour(data.hourly, current.time || '');
-  const forecast = upcomingHours(data.hourly, current.time || '');
-  const cleanest = forecast.reduce(
-    (best, hour) => (best === null || hour.aqi < best.aqi ? hour : best),
-    /** @type {import('./types.js').ForecastHour|null} */ (null),
-  );
+  const forecast = upcomingHours(data.hourly, now);
   return {
-    forecast,
-    cleanest: cleanest ? { time: cleanest.time, aqi: cleanest.aqi, label: classifyAqi(cleanest.aqi).label } : null,
     aqi: Math.round(current.us_aqi),
     level: band.level,
     label: band.label,
@@ -197,8 +153,19 @@ export async function fetchAirQuality(latitude, longitude, fetchImpl) {
     ozone: round1(current.ozone),
     measuredAt: current.time || null,
     timezone: data.timezone || null,
-    peak: peak ? { time: peak.time, aqi: Math.round(peak.aqi), label: classifyAqi(peak.aqi).label } : null,
+    forecast,
+    peak: labelled(worstUpcomingHour(data.hourly, now)),
+    cleanest: labelled(extremeHour(forecast, (candidate, best) => candidate.aqi < best.aqi)),
   };
+}
+
+/**
+ * An hour with its AQI rounded and its band named, ready to show.
+ * @param {{time: string, aqi: number}|null} hour
+ * @returns {{time: string, aqi: number, label: string}|null}
+ */
+function labelled(hour) {
+  return hour ? { time: hour.time, aqi: Math.round(hour.aqi), label: classifyAqi(hour.aqi).label } : null;
 }
 
 /**

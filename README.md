@@ -10,7 +10,33 @@ Every item carries an impact line that explains the direct effect of that choice
 
 Built for PromptWars Virtual, Challenge 6.
 
-## How it works
+## Chosen vertical
+
+PromptWars Virtual, Challenge 6: Urban Air Quality Assistant. The persona is a family or community living through winter smog in a city, who needs to know what to do today, not a chart to interpret.
+
+## Approach and logic
+
+The assistant makes its decisions from the user's context, in this order:
+
+1. **How bad is the air?** The live US AQI is placed in one of six bands. The band sets the tone of the plan: a light touch on a good day, strict limits on a hazardous one.
+2. **Who is at home?** Children, older adults, anyone with asthma, someone pregnant or an outdoor worker. The plan protects the most vulnerable person first.
+3. **When is it worst and cleanest?** The 24 hour forecast gives the worst and the cleanest hour, and the daily routine is timed around them.
+4. **How does this household live?** The commute, the cooking fuel and the time spent outdoors decide which swaps are suggested.
+5. **What can they spend?** Every step is tagged free, low cost or some cost, and a household with no budget is not given costly steps.
+6. **What does each step change?** Every step carries a plain explanation of its direct impact on exposure or emissions, and is tagged high, medium or small impact.
+
+Google Gemma writes the plan from this context. Its reply must match a fixed schema and is checked before display. If the model cannot answer, the same decisions are applied by a built in rule set, so the user always gets a plan.
+
+## Assumptions
+
+- Air quality is reported as the US AQI, with readings and forecasts from Open-Meteo's model for the place, not from a sensor in the user's street.
+- WHO 2021 guideline levels are used as the health reference for each pollutant.
+- The cigarette comparison uses the Berkeley Earth rule of thumb (22 µg/m³ of PM2.5 over a day is about one cigarette) and is an illustration, not a medical measure.
+- A shared location is rounded to about one kilometre, which is precise enough for air quality.
+- Plans are general guidance for households, not medical advice.
+- The service runs on free tiers, so the number of model written plans per day is capped; past the cap the rule based plan is served.
+
+## How the solution works
 
 ```
 Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air quality)

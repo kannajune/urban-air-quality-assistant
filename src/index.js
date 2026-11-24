@@ -1,7 +1,7 @@
 import { HttpError, json, readJsonBody, withSecurityHeaders } from './lib/http.js';
 import { validateCoordinates, validatePlanRequest } from './lib/validate.js';
 import { fetchAirQuality, geocodeCity, reverseGeocode } from './lib/airquality.js';
-import { buildPrompt, generatePlan } from './lib/gemini.js';
+import { buildPrompt } from './lib/prompt.js';
 import { buildFallbackPlan } from './lib/fallback.js';
 import { RateLimiter, checkLimit } from './lib/limiter.js';
 import { generateWithWorkersAi } from './lib/workersai.js';
@@ -69,7 +69,7 @@ export async function handlePlace(request, env) {
  * @returns {Promise<Response>}
  */
 export async function handlePlan(request, env) {
-  const { blocked, ai: aiAllowed } = await applyLimits(request, env, Boolean(env.GEMINI_API_KEY || env.AI));
+  const { blocked, ai: aiAllowed } = await applyLimits(request, env, Boolean(env.AI));
   if (blocked) return blocked;
 
   const answers = validatePlanRequest(await readJsonBody(request));
@@ -84,25 +84,16 @@ export async function handlePlan(request, env) {
   }
 
   const air = await fetchAirQuality(place.latitude, place.longitude, fetchImpl);
-  // Model chain: Gemini when a key is set, then the keyless open model, then the built in rules.
-  // Past the app wide daily ceiling no model is called at all.
-  let written = null;
-  if (aiAllowed) {
-    const prompt = buildPrompt(answers, place.name, air);
-    const gemini = await generatePlan({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, fetchImpl }, prompt);
-    if (gemini) {
-      written = { ...gemini, source: 'gemini' };
-    } else {
-      const open = await generateWithWorkersAi(env.AI, env.WORKERS_AI_MODEL, prompt);
-      if (open) written = { ...open, source: 'workers-ai' };
-    }
-  }
+  // The model writes the plan; if it cannot, or the app wide daily ceiling is reached, the built in rules do.
+  const written = aiAllowed
+    ? await generateWithWorkersAi(env.AI, env.WORKERS_AI_MODEL, buildPrompt(answers, place.name, air))
+    : null;
 
   return json({
     place: place.name,
     air,
     plan: written ? written.plan : buildFallbackPlan(answers, air, place.name),
-    source: written ? written.source : 'fallback',
+    source: written ? 'ai' : 'fallback',
     model: written ? written.model : null,
   });
 }

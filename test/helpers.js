@@ -30,9 +30,10 @@ export const modelPlan = {
   alternatives: [{ title: 'Share the car', detail: 'Pool with a neighbour.', impact: 'Halves emissions per person.', cost: 'free', benefit: 'high' }],
 };
 
-/** @param {unknown} plan */
-export function geminiReply(plan) {
-  return { candidates: [{ content: { parts: [{ text: JSON.stringify(plan) }] } }] };
+/** A Workers AI binding that always answers with the given reply. */
+export function fakeAi(reply) {
+  const calls = [];
+  return { calls, run: async (model, input) => (calls.push({ model, input }), reply) };
 }
 
 /**

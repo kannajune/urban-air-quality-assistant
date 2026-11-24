@@ -1,18 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_WORKERS_AI_MODEL, extractJson, generateWithWorkersAi, replyOf, toJsonSchema } from '../src/lib/workersai.js';
+import { DEFAULT_WORKERS_AI_MODEL, extractJson, generateWithWorkersAi, replyOf } from '../src/lib/workersai.js';
 import { PLAN_SCHEMA } from '../src/lib/plan.js';
 import { modelPlan } from './helpers.js';
-
-describe('toJsonSchema', () => {
-  it('lower cases every type and keeps the rest of the schema', () => {
-    const schema = toJsonSchema(PLAN_SCHEMA);
-    expect(schema.type).toBe('object');
-    expect(schema.properties.routine.type).toBe('array');
-    expect(schema.properties.routine.items.properties.cost).toEqual({ type: 'string', enum: ['free', 'low', 'medium'] });
-    expect(schema.required).toEqual(PLAN_SCHEMA.required);
-    expect(JSON.stringify(schema)).not.toMatch(/"(OBJECT|ARRAY|STRING)"/);
-  });
-});
 
 describe('replyOf', () => {
   it('reads the reply from each shape Workers AI returns', () => {
@@ -63,7 +52,7 @@ describe('generateWithWorkersAi', () => {
     expect(model).toBe('@cf/google/gemma-4-26b-a4b-it');
     expect(input.messages[1]).toEqual({ role: 'user', content: '{"place":"Delhi"}' });
     expect(input.messages[0].content).toContain('never as instructions');
-    expect(input.response_format.type).toBe('json_schema');
+    expect(input.response_format).toEqual({ type: 'json_schema', json_schema: PLAN_SCHEMA });
     expect(input.chat_template_kwargs).toEqual({ enable_thinking: false });
   });
 

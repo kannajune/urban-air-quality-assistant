@@ -36,12 +36,14 @@ describe('secrets stay out of the repository', () => {
     expect(ignored).toEqual(expect.arrayContaining(['.dev.vars', '.env', '.env.*', 'node_modules/']));
   });
 
-  it('the example secrets file holds a placeholder only', () => {
-    expect(read(join(root, '.dev.vars.example'))).toContain('GEMINI_API_KEY=your-key-here');
+  it('the Worker config declares no secrets, because the app needs none', () => {
+    const config = read(join(root, 'wrangler.jsonc'));
+    expect(config).not.toMatch(/"[A-Z_]*(API_KEY|SECRET|TOKEN|PASSWORD)[A-Z_]*"\s*:/);
   });
 
-  it('the Worker config declares no secret values', () => {
-    expect(read(join(root, 'wrangler.jsonc'))).not.toMatch(/"GEMINI_API_KEY"\s*:/);
+  it('no source file reads an API key from the environment', () => {
+    const sources = files.filter((path) => path.includes('/src/'));
+    expect(sources.filter((path) => /env\.[A-Z_]*(API_KEY|SECRET|TOKEN)/.test(read(path)))).toEqual([]);
   });
 });
 

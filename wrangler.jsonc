@@ -10,8 +10,7 @@
     "run_worker_first": true
   },
   "vars": {
-    // Models to try, most preferred first. Configuration, not a secret, so it changes without a code edit.
-    "GEMINI_MODEL": "gemini-3.5-flash,gemini-flash-latest,gemini-3.5-flash-lite",
+    // The model is configuration, so it changes without a code edit.
     "WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
     // Exact limits enforced by the RateLimiter Durable Object.
     "LIMIT_VISITOR_PER_MINUTE": "5",
@@ -32,7 +31,7 @@
       "simple": { "limit": 40, "period": 60 }
     }
   ],
-  // Keyless backup model on Cloudflare Workers AI (free daily allowance, no API key to protect).
+  // The plan is written by a model on Cloudflare Workers AI (free daily allowance, no API key to protect).
   "ai": { "binding": "AI" },
   // Exact counter behind the edge limiter: per visitor per minute and per day, and a whole app daily ceiling on AI calls.
   "durable_objects": {
@@ -42,6 +41,5 @@
   "observability": {
     "enabled": true
   }
-  // GEMINI_API_KEY is a secret. Set it with: npx wrangler secret put GEMINI_API_KEY
-  // For local runs, copy .dev.vars.example to .dev.vars. Never commit .dev.vars.
+  // This app needs no secrets: the model is reached through the AI binding, not an API key.
 }

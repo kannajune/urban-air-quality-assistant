@@ -1,8 +1,8 @@
-import { SYSTEM_INSTRUCTION } from './gemini.js';
+import { SYSTEM_INSTRUCTION } from './prompt.js';
 import { PLAN_SCHEMA, normalisePlan } from './plan.js';
 
 /**
- * Keyless backup model: Google's open Gemma model on Cloudflare Workers AI.
+ * The plan writer: Google's open Gemma model on Cloudflare Workers AI.
  * It runs inside the same Cloudflare account through a binding, so there is no API key to protect.
  */
 
@@ -18,19 +18,6 @@ const SHAPE_INSTRUCTION = [
   'Each object has "title", "detail" and "impact" (strings),',
   '"cost" (one of "free", "low", "medium") and "benefit" (one of "high", "medium", "low").',
 ].join(' ');
-
-/**
- * Convert the Gemini style schema (upper case types) to standard JSON Schema (lower case types).
- * @param {unknown} node
- * @returns {unknown}
- */
-export function toJsonSchema(node) {
-  if (Array.isArray(node)) return node.map(toJsonSchema);
-  if (node === null || typeof node !== 'object') return node;
-  return Object.fromEntries(
-    Object.entries(node).map(([key, value]) => [key, key === 'type' && typeof value === 'string' ? value.toLowerCase() : toJsonSchema(value)]),
-  );
-}
 
 /**
  * Pull the reply text out of the shapes Workers AI models return.
@@ -82,7 +69,7 @@ export async function generateWithWorkersAi(ai, model, prompt) {
         ],
         temperature: 0.4,
         max_tokens: 2048,
-        response_format: { type: 'json_schema', json_schema: toJsonSchema(PLAN_SCHEMA) },
+        response_format: { type: 'json_schema', json_schema: PLAN_SCHEMA },
         // Gemma 4 reasons at length by default and can spend the whole reply budget on it.
         // A short structured plan does not need that, so thinking is switched off.
         chat_template_kwargs: { enable_thinking: false },

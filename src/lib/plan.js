@@ -1,5 +1,5 @@
 /**
- * The shape of a plan, shared by the Gemini path and the built in fallback.
+ * The shape of a plan, shared by the model path and the built in fallback.
  */
 
 export const SECTIONS = Object.freeze(['routine', 'indoor', 'alternatives']);
@@ -11,27 +11,27 @@ export const BENEFITS = Object.freeze(['high', 'medium', 'low']);
 const MAX_ITEMS = 5;
 const MAX_TEXT = 320;
 
-/** JSON schema sent to Gemini so the reply is structured, not free text. */
+/** JSON Schema sent to the model so the reply is structured, not free text. */
 export const PLAN_SCHEMA = Object.freeze({
-  type: 'OBJECT',
+  type: 'object',
   properties: {
-    summary: { type: 'STRING' },
-    routine: { type: 'ARRAY', items: itemSchema() },
-    indoor: { type: 'ARRAY', items: itemSchema() },
-    alternatives: { type: 'ARRAY', items: itemSchema() },
+    summary: { type: 'string' },
+    routine: { type: 'array', items: itemSchema() },
+    indoor: { type: 'array', items: itemSchema() },
+    alternatives: { type: 'array', items: itemSchema() },
   },
   required: ['summary', 'routine', 'indoor', 'alternatives'],
 });
 
 function itemSchema() {
   return {
-    type: 'OBJECT',
+    type: 'object',
     properties: {
-      title: { type: 'STRING' },
-      detail: { type: 'STRING' },
-      impact: { type: 'STRING' },
-      cost: { type: 'STRING', enum: COSTS },
-      benefit: { type: 'STRING', enum: BENEFITS },
+      title: { type: 'string' },
+      detail: { type: 'string' },
+      impact: { type: 'string' },
+      cost: { type: 'string', enum: COSTS },
+      benefit: { type: 'string', enum: BENEFITS },
     },
     required: ['title', 'detail', 'impact', 'cost', 'benefit'],
   };

@@ -23,7 +23,7 @@ export const SYSTEM_INSTRUCTION = [
  * Build the user message. Only validated fields are included.
  * @param {import('./validate.js').PlanRequest} answers
  * @param {string} placeName
- * @param {Object} air
+ * @param {import('./types.js').AirReading} air
  * @returns {string}
  */
 export function buildPrompt(answers, placeName, air) {

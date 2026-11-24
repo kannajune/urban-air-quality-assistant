@@ -54,7 +54,7 @@ export function extractJson(reply) {
  * @param {{run: (model: string, input: object) => Promise<unknown>}|undefined} ai The Workers AI binding.
  * @param {string|undefined} model
  * @param {string} prompt
- * @returns {Promise<{plan: Object, model: string}|null>}
+ * @returns {Promise<{plan: import('./types.js').Plan, model: string}|null>}
  */
 export async function generateWithWorkersAi(ai, model, prompt) {
   if (!ai || typeof ai.run !== 'function') return null;

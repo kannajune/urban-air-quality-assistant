@@ -31,7 +31,12 @@ describe('extractJson', () => {
     expect(extractJson({ a: 1 })).toEqual({ a: 1 });
   });
 
-  it.each([['no braces', 'sorry'], ['broken JSON', '{"a":'], ['a number', 42], ['null', null]])('returns null for %s', (_name, input) => {
+  it.each([
+    ['no braces', 'sorry'],
+    ['broken JSON', '{"a":'],
+    ['a number', 42],
+    ['null', null],
+  ])('returns null for %s', (_name, input) => {
     expect(extractJson(input)).toBeNull();
   });
 });
@@ -78,7 +83,11 @@ describe('generateWithWorkersAi', () => {
   });
 
   it('returns null when the model call fails, such as an exhausted free allowance', async () => {
-    const ai = { run: vi.fn(async () => { throw new Error('daily free allocation used up'); }) };
+    const ai = {
+      run: vi.fn(async () => {
+        throw new Error('daily free allocation used up');
+      }),
+    };
     expect(await generateWithWorkersAi(ai, undefined, '{}')).toBeNull();
   });
 });

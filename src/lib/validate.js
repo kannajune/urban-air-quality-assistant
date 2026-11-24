@@ -59,7 +59,10 @@ function coordinate(value, min, max) {
  * @returns {{latitude: number, longitude: number}}
  */
 export function validateCoordinates(input) {
-  const body = input !== null && typeof input === 'object' && !Array.isArray(input) ? /** @type {Record<string, unknown>} */ (input) : {};
+  const body =
+    input !== null && typeof input === 'object' && !Array.isArray(input)
+      ? /** @type {Record<string, unknown>} */ (input)
+      : {};
   const latitude = coordinate(body.latitude, -90, 90);
   const longitude = coordinate(body.longitude, -180, 180);
   if (latitude === null || longitude === null) {

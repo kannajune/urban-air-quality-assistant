@@ -3,17 +3,39 @@ import { HttpError, fetchWithTimeout } from './http.js';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const AIR_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 const REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
+/** How far ahead the forecast looks. */
+const FORECAST_HOURS = 24;
 // OpenStreetMap asks every client to identify itself.
 const APP_USER_AGENT = 'urban-air-quality-assistant/1.0 (hackathon project)';
 
 /** US AQI bands with plain language meaning. Upper bound is inclusive. */
 export const AQI_BANDS = Object.freeze([
   { max: 50, level: 'good', label: 'Good', advice: 'Air is clean. Normal routines are fine.' },
-  { max: 100, level: 'moderate', label: 'Moderate', advice: 'Fine for most people. Sensitive people should watch for symptoms.' },
-  { max: 150, level: 'sensitive', label: 'Unhealthy for sensitive groups', advice: 'Children, older people and anyone with asthma should cut long outdoor effort.' },
+  {
+    max: 100,
+    level: 'moderate',
+    label: 'Moderate',
+    advice: 'Fine for most people. Sensitive people should watch for symptoms.',
+  },
+  {
+    max: 150,
+    level: 'sensitive',
+    label: 'Unhealthy for sensitive groups',
+    advice: 'Children, older people and anyone with asthma should cut long outdoor effort.',
+  },
   { max: 200, level: 'unhealthy', label: 'Unhealthy', advice: 'Everyone should reduce time and effort outdoors.' },
-  { max: 300, level: 'very_unhealthy', label: 'Very unhealthy', advice: 'Stay indoors where possible and wear a fitted N95 mask outside.' },
-  { max: Infinity, level: 'hazardous', label: 'Hazardous', advice: 'Avoid going out. Keep windows shut and filter indoor air.' },
+  {
+    max: 300,
+    level: 'very_unhealthy',
+    label: 'Very unhealthy',
+    advice: 'Stay indoors where possible and wear a fitted N95 mask outside.',
+  },
+  {
+    max: Infinity,
+    level: 'hazardous',
+    label: 'Hazardous',
+    advice: 'Avoid going out. Keep windows shut and filter indoor air.',
+  },
 ]);
 
 /**
@@ -65,13 +87,23 @@ export async function reverseGeocode(latitude, longitude, fetchImpl) {
     'accept-language': 'en',
   });
   try {
-    const response = await fetchWithTimeout(fetchImpl, `${REVERSE_URL}?${query}`, { headers: { 'User-Agent': APP_USER_AGENT } }, 5000);
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      `${REVERSE_URL}?${query}`,
+      { headers: { 'User-Agent': APP_USER_AGENT } },
+      5000,
+    );
     if (!response.ok) return null;
     const address = (await response.json())?.address || {};
     const locality = address.suburb || address.neighbourhood || address.village || address.town;
     const city = address.city || address.town || address.county || address.state_district;
-    const parts = [...new Set([locality, city, address.state, address.country].filter((part) => typeof part === 'string' && part))];
-    const name = parts.join(', ').replace(/[<>\u0000-\u001f]/g, ' ').slice(0, 120);
+    const parts = [
+      ...new Set([locality, city, address.state, address.country].filter((part) => typeof part === 'string' && part)),
+    ];
+    const name = parts
+      .join(', ')
+      .replace(/[<>\u0000-\u001f]/g, ' ')
+      .slice(0, 120);
     return name || null;
   } catch {
     return null;
@@ -87,13 +119,14 @@ export async function reverseGeocode(latitude, longitude, fetchImpl) {
 export function worstUpcomingHour(hourly, nowIso) {
   const times = hourly?.time || [];
   const values = hourly?.us_aqi || [];
+  /** @type {{time: string, aqi: number}|null} */
   let worst = null;
   let seen = 0;
-  for (let i = 0; i < times.length && seen < 24; i += 1) {
+  for (let i = 0; i < times.length && seen < FORECAST_HOURS; i += 1) {
     if (times[i] < nowIso) continue;
     seen += 1;
     const aqi = values[i];
-    if (Number.isFinite(aqi) && (worst === null || aqi > worst.aqi)) {
+    if (typeof aqi === 'number' && Number.isFinite(aqi) && (worst === null || aqi > worst.aqi)) {
       worst = { time: times[i], aqi };
     }
   }
@@ -109,10 +142,12 @@ export function worstUpcomingHour(hourly, nowIso) {
 export function upcomingHours(hourly, nowIso) {
   const times = hourly?.time || [];
   const values = hourly?.us_aqi || [];
+  /** @type {import('./types.js').ForecastHour[]} */
   const hours = [];
-  for (let i = 0; i < times.length && hours.length < 24; i += 1) {
-    if (times[i] < nowIso || !Number.isFinite(values[i])) continue;
-    hours.push({ time: times[i], aqi: Math.round(values[i]), level: classifyAqi(values[i]).level });
+  for (let i = 0; i < times.length && hours.length < FORECAST_HOURS; i += 1) {
+    const aqi = values[i];
+    if (times[i] < nowIso || typeof aqi !== 'number' || !Number.isFinite(aqi)) continue;
+    hours.push({ time: times[i], aqi: Math.round(aqi), level: classifyAqi(aqi).level });
   }
   return hours;
 }
@@ -122,7 +157,7 @@ export function upcomingHours(hourly, nowIso) {
  * @param {number} latitude
  * @param {number} longitude
  * @param {typeof fetch} fetchImpl
- * @returns {Promise<Object>}
+ * @returns {Promise<import('./types.js').AirReading>}
  */
 export async function fetchAirQuality(latitude, longitude, fetchImpl) {
   const query = new URLSearchParams({
@@ -145,7 +180,10 @@ export async function fetchAirQuality(latitude, longitude, fetchImpl) {
   const band = classifyAqi(current.us_aqi);
   const peak = worstUpcomingHour(data.hourly, current.time || '');
   const forecast = upcomingHours(data.hourly, current.time || '');
-  const cleanest = forecast.reduce((best, hour) => (best === null || hour.aqi < best.aqi ? hour : best), null);
+  const cleanest = forecast.reduce(
+    (best, hour) => (best === null || hour.aqi < best.aqi ? hour : best),
+    /** @type {import('./types.js').ForecastHour|null} */ (null),
+  );
   return {
     forecast,
     cleanest: cleanest ? { time: cleanest.time, aqi: cleanest.aqi, label: classifyAqi(cleanest.aqi).label } : null,

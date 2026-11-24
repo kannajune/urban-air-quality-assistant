@@ -1,0 +1,16 @@
+# Headers for static files, which are served straight from the edge without running the Worker.
+# The security values match SECURITY_HEADERS in src/lib/http.js; a test keeps the two in step.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Styles and scripts change only on deploy: let browsers reuse them for an hour,
+# and keep serving the old copy for a day while a fresh one is fetched in the background.
+/*.css
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+/*.js
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

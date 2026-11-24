@@ -25,10 +25,10 @@ Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air
 
 ## Where Gen AI is used
 
-| Where | What |
-|---|---|
+| Where                  | What                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `src/lib/workersai.js` | Google Gemma 4, an open model on Cloudflare Workers AI, writes the tailored plan from live readings and household answers, using a JSON schema for the reply |
-| Build | The project was built with an AI coding assistant |
+| Build                  | The project was built with an AI coding assistant                                                                                                            |
 
 ## Security
 
@@ -40,6 +40,15 @@ Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air
 - Limits come in two layers. Cloudflare's edge rate limiter sheds heavy bursts, and a Durable Object keeps exact counts: per visitor per minute, per visitor per day, and a whole app daily ceiling on AI calls. Past that ceiling the app still answers, from its built in rules, so the free model allowance cannot be drained. Visitor addresses are counted in memory only and never stored.
 - Request bodies are capped at 4 KB and every upstream call has a timeout.
 - Coordinates are rounded to about one kilometre before they leave the Worker, and nothing is stored.
+
+## Efficiency
+
+- Static files never run the Worker. They are served straight from the edge, with security and caching headers from `public/_headers`. Only `/api/` calls execute code.
+- Upstream answers are cached at the edge: place lookups for a day, air quality readings for ten minutes. A written plan is cached for ten minutes under a hash of the readings and answers, so a repeat request costs no model call and returns at once.
+- Cached plans do not use the daily model allowance; a model call is reserved only when a plan really has to be written.
+- Independent lookups run together: for a shared location, the place name and the air reading are fetched in parallel.
+- Every upstream call has a timeout, and the model's long reasoning mode is switched off for this short structured task.
+- In the browser: styles and scripts are cached and preloaded, a new request cancels the previous one, the page waits at most 45 seconds, page elements are looked up once, and the header animation pauses while it is scrolled out of view.
 
 ## Accessibility
 
@@ -65,9 +74,12 @@ Open http://localhost:8787. No keys or environment files are needed.
 ## Test
 
 ```bash
-npm test             # 182 unit and integration tests, no network needed
+npm test             # 201 unit and integration tests, no network needed
 npm run test:coverage
 npm run lint
+npm run typecheck     # type checks the JavaScript through its JSDoc types
+npm run format:check
+npm run check         # all of the above
 ```
 
 Tests cover input validation, AQI banding, the upstream clients, the model call, the fallback plan, every Worker route, rate limiting and the view helpers. Coverage thresholds are enforced in `vitest.config.js` and in CI.
@@ -83,8 +95,10 @@ npm run deploy
 
 ```
 public/        Static front end (HTML, CSS, ES modules)
-src/index.js   Worker entry: routing, rate limits, error handling
-src/lib/       Validation, air quality client, Workers AI client, prompt, fallback plan, rate limiter, HTTP helpers
+src/index.js   Worker entry: routing and error handling
+src/routes/    One file per endpoint: plan, place
+src/lib/       Validation, air quality client, Workers AI client, prompt, fallback plan,
+               edge cache, rate limits, HTTP helpers, shared types
 test/          Vitest suites
 ```
 

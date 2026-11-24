@@ -29,7 +29,16 @@ const base = [
 
 describe('collectAnswers', () => {
   it('builds the request body from the form', () => {
-    const answers = collectAnswers(formData([['city', ' Pune '], ...base, ['household', 'children'], ['household', 'elderly'], ['hasPurifier', 'on']]), null);
+    const answers = collectAnswers(
+      formData([
+        ['city', ' Pune '],
+        ...base,
+        ['household', 'children'],
+        ['household', 'elderly'],
+        ['hasPurifier', 'on'],
+      ]),
+      null,
+    );
     expect(answers).toEqual({
       city: 'Pune',
       commute: 'metro',
@@ -73,7 +82,13 @@ describe('pollutantCards', () => {
   it('compares each reading with the WHO guideline', () => {
     const cards = pollutantCards({ pm25: 75, pm10: 30, no2: 25, ozone: null });
     expect(cards.map((card) => card.key)).toEqual(['pm25', 'pm10', 'no2']);
-    expect(cards[0]).toMatchObject({ name: 'PM2.5', value: '75 µg/m³', times: '5.0 times the WHO guideline', percent: 100, over: true });
+    expect(cards[0]).toMatchObject({
+      name: 'PM2.5',
+      value: '75 µg/m³',
+      times: '5.0 times the WHO guideline',
+      percent: 100,
+      over: true,
+    });
     expect(cards[1]).toMatchObject({ times: 'Within the WHO guideline', percent: 22, over: false });
     expect(cards[2]).toMatchObject({ times: '1.0 times the WHO guideline', over: true });
   });
@@ -142,8 +157,17 @@ describe('forecastBars', () => {
 
 describe('stepTags and planStats', () => {
   it('turns cost and benefit into readable tags', () => {
-    expect(stepTags({ cost: 'free', benefit: 'high' })).toEqual({ cost: 'free', costLabel: 'Free', benefitLabel: 'High impact', level: 3 });
-    expect(stepTags({ cost: 'medium', benefit: 'low' })).toMatchObject({ costLabel: 'Some cost', benefitLabel: 'Small impact', level: 1 });
+    expect(stepTags({ cost: 'free', benefit: 'high' })).toEqual({
+      cost: 'free',
+      costLabel: 'Free',
+      benefitLabel: 'High impact',
+      level: 3,
+    });
+    expect(stepTags({ cost: 'medium', benefit: 'low' })).toMatchObject({
+      costLabel: 'Some cost',
+      benefitLabel: 'Small impact',
+      level: 1,
+    });
   });
 
   it('falls back to the middle value for unknown or missing tags', () => {
@@ -153,7 +177,10 @@ describe('stepTags and planStats', () => {
 
   it('counts steps, free steps and high impact steps', () => {
     const plan = {
-      routine: [{ cost: 'free', benefit: 'high' }, { cost: 'low', benefit: 'high' }],
+      routine: [
+        { cost: 'free', benefit: 'high' },
+        { cost: 'low', benefit: 'high' },
+      ],
       indoor: [{ cost: 'free', benefit: 'medium' }],
       alternatives: [{ cost: 'medium', benefit: 'low' }],
     };

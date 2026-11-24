@@ -4,7 +4,12 @@ import { normalisePlan } from '../src/lib/plan.js';
 import { OPTIONS, validatePlanRequest } from '../src/lib/validate.js';
 import { validAnswers } from './helpers.js';
 
-const severeAir = { aqi: 312, label: 'Hazardous', advice: 'Avoid going out.', peak: { time: '2026-11-23T21:00', aqi: 365 } };
+const severeAir = {
+  aqi: 312,
+  label: 'Hazardous',
+  advice: 'Avoid going out.',
+  peak: { time: '2026-11-23T21:00', aqi: 365 },
+};
 const cleanAir = { aqi: 35, label: 'Good', advice: 'Air is clean.', peak: null };
 
 const answers = (overrides = {}) => validatePlanRequest({ ...validAnswers, ...overrides });
@@ -40,15 +45,25 @@ describe('buildFallbackPlan', () => {
   });
 
   it('adds clean air breaks for long outdoor hours', () => {
-    expect(titles(buildFallbackPlan(answers({ outdoorTime: 'over_3h' }), severeAir, 'Delhi').routine)).toContain('clean air breaks');
-    expect(titles(buildFallbackPlan(answers({ household: ['outdoor_worker'] }), severeAir, 'Delhi').routine)).toContain('clean air breaks');
+    expect(titles(buildFallbackPlan(answers({ outdoorTime: 'over_3h' }), severeAir, 'Delhi').routine)).toContain(
+      'clean air breaks',
+    );
+    expect(titles(buildFallbackPlan(answers({ household: ['outdoor_worker'] }), severeAir, 'Delhi').routine)).toContain(
+      'clean air breaks',
+    );
     expect(titles(buildFallbackPlan(answers(), severeAir, 'Delhi').routine)).not.toContain('clean air breaks');
   });
 
   it('fits indoor advice to the purifier and the budget', () => {
-    expect(titles(buildFallbackPlan(answers({ hasPurifier: true }), severeAir, 'Delhi').indoor)).toContain('Run the purifier');
-    expect(titles(buildFallbackPlan(answers({ budget: 'low' }), severeAir, 'Delhi').indoor)).toContain('Make one clean room');
-    expect(titles(buildFallbackPlan(answers({ budget: 'none' }), severeAir, 'Delhi').indoor)).toContain('Seal one bedroom');
+    expect(titles(buildFallbackPlan(answers({ hasPurifier: true }), severeAir, 'Delhi').indoor)).toContain(
+      'Run the purifier',
+    );
+    expect(titles(buildFallbackPlan(answers({ budget: 'low' }), severeAir, 'Delhi').indoor)).toContain(
+      'Make one clean room',
+    );
+    expect(titles(buildFallbackPlan(answers({ budget: 'none' }), severeAir, 'Delhi').indoor)).toContain(
+      'Seal one bedroom',
+    );
   });
 
   it('tags every item with a cost and a benefit, and never asks a zero budget home to spend much', () => {

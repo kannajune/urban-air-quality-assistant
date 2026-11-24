@@ -25,9 +25,33 @@ export const airReply = {
 
 export const modelPlan = {
   summary: 'Air is hazardous in Delhi today. Keep the children indoors until early afternoon.',
-  routine: [{ title: 'Shift the school run', detail: 'Leave after ten.', impact: 'Cuts peak exposure by about half.', cost: 'free', benefit: 'high' }],
-  indoor: [{ title: 'Seal one room', detail: 'Tape the window gaps.', impact: 'Less smog leaks in overnight.', cost: 'low', benefit: 'medium' }],
-  alternatives: [{ title: 'Share the car', detail: 'Pool with a neighbour.', impact: 'Halves emissions per person.', cost: 'free', benefit: 'high' }],
+  routine: [
+    {
+      title: 'Shift the school run',
+      detail: 'Leave after ten.',
+      impact: 'Cuts peak exposure by about half.',
+      cost: 'free',
+      benefit: 'high',
+    },
+  ],
+  indoor: [
+    {
+      title: 'Seal one room',
+      detail: 'Tape the window gaps.',
+      impact: 'Less smog leaks in overnight.',
+      cost: 'low',
+      benefit: 'medium',
+    },
+  ],
+  alternatives: [
+    {
+      title: 'Share the car',
+      detail: 'Pool with a neighbour.',
+      impact: 'Halves emissions per person.',
+      cost: 'free',
+      benefit: 'high',
+    },
+  ],
 };
 
 /** A Workers AI binding that always answers with the given reply. */

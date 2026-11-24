@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import worker from '../src/index.js';
-import { airReply, fakeAi, fakeFetch, geocodeReply, modelPlan, planRequest, reverseReply, validAnswers } from './helpers.js';
+import {
+  airReply,
+  fakeAi,
+  fakeFetch,
+  geocodeReply,
+  modelPlan,
+  planRequest,
+  reverseReply,
+  validAnswers,
+} from './helpers.js';
 
 const assets = { fetch: async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } }) };
 
@@ -68,7 +77,10 @@ describe('POST /api/plan', () => {
 
   it('skips geocoding when coordinates are sent', async () => {
     const testEnv = env();
-    const response = await worker.fetch(planRequest({ ...validAnswers, city: '', latitude: 13.08, longitude: 80.27 }), testEnv);
+    const response = await worker.fetch(
+      planRequest({ ...validAnswers, city: '', latitude: 13.08, longitude: 80.27 }),
+      testEnv,
+    );
     const data = await response.json();
     expect(data.place).toBe('Adyar, Chennai, Tamil Nadu, India');
     expect(testEnv.fetchImpl.calls.some((call) => call.url.includes('geocoding-api'))).toBe(false);
@@ -79,13 +91,20 @@ describe('POST /api/plan', () => {
       'air-quality-api': { body: airReply },
       nominatim: { status: 500 },
     });
-    const response = await worker.fetch(planRequest({ ...validAnswers, city: '', latitude: 13.08, longitude: 80.27 }), env({ fetchImpl }));
+    const response = await worker.fetch(
+      planRequest({ ...validAnswers, city: '', latitude: 13.08, longitude: 80.27 }),
+      env({ fetchImpl }),
+    );
     expect(response.status).toBe(200);
     expect((await response.json()).place).toBe('your location');
   });
 
   it('falls back to the built in plan when the model fails', async () => {
-    const AI = { run: async () => { throw new Error('daily free allocation used up'); } };
+    const AI = {
+      run: async () => {
+        throw new Error('daily free allocation used up');
+      },
+    };
     const data = await (await worker.fetch(planRequest(validAnswers), env({ AI }))).json();
     expect(data.source).toBe('fallback');
     expect(data.model).toBeNull();
@@ -93,7 +112,9 @@ describe('POST /api/plan', () => {
   });
 
   it('falls back when the model reply has the wrong shape', async () => {
-    const data = await (await worker.fetch(planRequest(validAnswers), env({ AI: fakeAi({ response: '{"summary":"only this"}' }) }))).json();
+    const data = await (
+      await worker.fetch(planRequest(validAnswers), env({ AI: fakeAi({ response: '{"summary":"only this"}' }) }))
+    ).json();
     expect(data.source).toBe('fallback');
   });
 
@@ -140,11 +161,19 @@ describe('POST /api/plan', () => {
 
 describe('POST /api/place', () => {
   const placeRequest = (body) =>
-    new Request('https://app.test/api/place', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    new Request('https://app.test/api/place', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
   it('returns the place name and the rounded coordinates', async () => {
     const response = await worker.fetch(placeRequest({ latitude: 13.006712, longitude: 80.257891 }), env());
-    expect(await response.json()).toEqual({ place: 'Adyar, Chennai, Tamil Nadu, India', latitude: 13.01, longitude: 80.26 });
+    expect(await response.json()).toEqual({
+      place: 'Adyar, Chennai, Tamil Nadu, India',
+      latitude: 13.01,
+      longitude: 80.26,
+    });
   });
 
   it('sends only rounded coordinates to the lookup service', async () => {
@@ -154,7 +183,10 @@ describe('POST /api/place', () => {
   });
 
   it('returns a null name when the lookup fails', async () => {
-    const response = await worker.fetch(placeRequest({ latitude: 1, longitude: 2 }), env({ fetchImpl: fakeFetch({ nominatim: { status: 500 } }) }));
+    const response = await worker.fetch(
+      placeRequest({ latitude: 1, longitude: 2 }),
+      env({ fetchImpl: fakeFetch({ nominatim: { status: 500 } }) }),
+    );
     expect(response.status).toBe(200);
     expect((await response.json()).place).toBeNull();
   });
@@ -175,7 +207,10 @@ describe('POST /api/place', () => {
 });
 
 describe('exact limits from the limiter object', () => {
-  const limiterReturning = (verdict) => ({ idFromName: () => 'global', get: () => ({ fetch: async () => new Response(JSON.stringify(verdict)) }) });
+  const limiterReturning = (verdict) => ({
+    idFromName: () => 'global',
+    get: () => ({ fetch: async () => new Response(JSON.stringify(verdict)) }),
+  });
 
   it('blocks with 429 and a Retry-After header when the visitor is over the minute limit', async () => {
     const LIMITER = limiterReturning({ allowed: false, ai: false, reason: 'minute', retryAfter: 37 });
@@ -214,7 +249,10 @@ describe('rate limits', () => {
 
   it('limits each visitor by IP address', async () => {
     const VISITOR_LIMIT = limiter(false);
-    const request = planRequest(validAnswers, { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' });
+    const request = planRequest(validAnswers, {
+      'Content-Type': 'application/json',
+      'CF-Connecting-IP': '203.0.113.9',
+    });
     const testEnv = env({ VISITOR_LIMIT, APP_LIMIT: limiter(true) });
     const response = await worker.fetch(request, testEnv);
     expect(response.status).toBe(429);
@@ -231,7 +269,10 @@ describe('rate limits', () => {
   });
 
   it('lets requests through when both limits allow', async () => {
-    const response = await worker.fetch(planRequest(validAnswers), env({ VISITOR_LIMIT: limiter(true), APP_LIMIT: limiter(true) }));
+    const response = await worker.fetch(
+      planRequest(validAnswers),
+      env({ VISITOR_LIMIT: limiter(true), APP_LIMIT: limiter(true) }),
+    );
     expect(response.status).toBe(200);
   });
 });

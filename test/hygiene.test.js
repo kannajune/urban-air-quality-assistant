@@ -66,6 +66,24 @@ describe('the page is compatible with a strict content security policy', () => {
   });
 });
 
+describe('static file headers', () => {
+  it('give static files the same security headers the Worker sets', async () => {
+    const { SECURITY_HEADERS } = await import('../src/lib/http.js');
+    const headers = read(join(root, 'public/_headers'));
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+      expect(headers).toContain(`${name}: ${value}`);
+    }
+  });
+
+  it('let browsers cache styles and scripts', () => {
+    expect(read(join(root, 'public/_headers'))).toMatch(/\/\*\.js\n\s+Cache-Control: public, max-age=\d+/);
+  });
+
+  it('only API calls are routed through the Worker', () => {
+    expect(read(join(root, 'wrangler.jsonc'))).toContain('"run_worker_first": ["/api/*"]');
+  });
+});
+
 describe('accessibility basics in the markup', () => {
   it('declares the language and has exactly one h1', () => {
     expect(html).toMatch(/<html lang="en">/);

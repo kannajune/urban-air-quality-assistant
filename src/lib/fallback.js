@@ -91,14 +91,16 @@ const FUEL_SWAPS = {
 /**
  * Build a plan from fixed rules.
  * @param {import('./validate.js').PlanRequest} answers
- * @param {Object} air
+ * @param {Pick<import('./types.js').AirReading, 'aqi'|'label'|'advice'|'peak'>} air
  * @param {string} placeName
- * @returns {{summary: string, routine: object[], indoor: object[], alternatives: object[]}}
+ * @returns {import('./types.js').Plan}
  */
 export function buildFallbackPlan(answers, air, placeName) {
   const severe = air.aqi > 150;
   const sensitive = answers.household.length > 0;
-  const peakNote = air.peak ? ` The worst hour ahead is around ${air.peak.time.slice(11, 16)} (AQI ${air.peak.aqi}).` : '';
+  const peakNote = air.peak
+    ? ` The worst hour ahead is around ${air.peak.time.slice(11, 16)} (AQI ${air.peak.aqi}).`
+    : '';
 
   const summary =
     `Air quality in ${placeName} is ${air.label.toLowerCase()} right now (AQI ${air.aqi}). ${air.advice}${peakNote}` +
@@ -187,8 +189,8 @@ export function buildFallbackPlan(answers, air, placeName) {
   }
 
   const alternatives = [
-    COMMUTE_SWAPS[answers.commute],
-    FUEL_SWAPS[answers.cookingFuel],
+    COMMUTE_SWAPS[/** @type {keyof typeof COMMUTE_SWAPS} */ (answers.commute)],
+    FUEL_SWAPS[/** @type {keyof typeof FUEL_SWAPS} */ (answers.cookingFuel)],
     item(
       'Use an electric heater, not a fire, for warmth',
       'Avoid angithis, coal and wood fires indoors. Layer clothing first and heat one room.',

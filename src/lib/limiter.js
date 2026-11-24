@@ -16,6 +16,8 @@
 export const DEFAULT_LIMITS = Object.freeze({ perMinute: 5, perDay: 40, aiPerDay: 200 });
 
 const MINUTE_MS = 60_000;
+const DAY_RETRY_SECONDS = 3600;
+const MAX_VISITOR_KEY_LENGTH = 64;
 const MAX_TRACKED_VISITORS = 5000;
 
 /**
@@ -24,6 +26,7 @@ const MAX_TRACKED_VISITORS = 5000;
  * @returns {{perMinute: number, perDay: number, aiPerDay: number}}
  */
 export function readLimits(env) {
+  /** @param {unknown} value @param {number} fallback */
   const pick = (value, fallback) => {
     const number = Number(value);
     return Number.isInteger(number) && number > 0 && number <= 100000 ? number : fallback;
@@ -55,7 +58,10 @@ export class RateLimiter {
     this.aiToday = null;
   }
 
-  /** Reset the counters when the UTC day changes, and load the persisted AI total once. */
+  /**
+   * Reset the counters when the UTC day changes, and load the persisted AI total once.
+   * @param {number} now
+   */
   async rollDay(now) {
     const today = dayOf(now);
     if (today !== this.day) {
@@ -70,47 +76,61 @@ export class RateLimiter {
   }
 
   /**
-   * Count one request and say what is allowed.
+   * Count a visit against one visitor's per minute and per day limits.
    * @param {string} visitor
-   * @param {boolean} wantsAi Whether this request would call the AI model.
-   * @returns {Promise<{allowed: boolean, ai: boolean, reason: string|null, retryAfter: number}>}
+   * @param {number} now
+   * @returns {{allowed: boolean, reason: string|null, retryAfter: number}}
    */
-  async check(visitor, wantsAi) {
-    const now = this.clock();
-    await this.rollDay(now);
-
+  countVisit(visitor, now) {
     if (!this.visitors.has(visitor) && this.visitors.size >= MAX_TRACKED_VISITORS) {
       // Memory guard: under a flood of new addresses, drop the oldest entry.
-      this.visitors.delete(this.visitors.keys().next().value);
+      const oldest = this.visitors.keys().next().value;
+      if (oldest !== undefined) this.visitors.delete(oldest);
     }
     const entry = this.visitors.get(visitor) || { minuteStart: now, minute: 0, day: 0 };
     if (now - entry.minuteStart >= MINUTE_MS) {
       entry.minuteStart = now;
       entry.minute = 0;
     }
-
-    if (entry.minute >= this.limits.perMinute) {
-      this.visitors.set(visitor, entry);
-      const retryAfter = Math.ceil((entry.minuteStart + MINUTE_MS - now) / 1000);
-      return { allowed: false, ai: false, reason: 'minute', retryAfter: Math.max(1, retryAfter) };
-    }
-    if (entry.day >= this.limits.perDay) {
-      this.visitors.set(visitor, entry);
-      return { allowed: false, ai: false, reason: 'day', retryAfter: 3600 };
-    }
-
-    entry.minute += 1;
-    entry.day += 1;
     this.visitors.set(visitor, entry);
 
-    // Past the app wide AI ceiling the request still succeeds, but without a model call.
-    let ai = false;
-    if (wantsAi && this.aiToday < this.limits.aiPerDay) {
-      this.aiToday += 1;
-      await this.storage.put(`ai:${this.day}`, this.aiToday);
-      ai = true;
+    if (entry.minute >= this.limits.perMinute) {
+      const retryAfter = Math.ceil((entry.minuteStart + MINUTE_MS - now) / 1000);
+      return { allowed: false, reason: 'minute', retryAfter: Math.max(1, retryAfter) };
     }
-    return { allowed: true, ai, reason: null, retryAfter: 0 };
+    if (entry.day >= this.limits.perDay) {
+      return { allowed: false, reason: 'day', retryAfter: DAY_RETRY_SECONDS };
+    }
+    entry.minute += 1;
+    entry.day += 1;
+    return { allowed: true, reason: null, retryAfter: 0 };
+  }
+
+  /**
+   * Take one model call from the whole app's daily allowance, if any is left.
+   * @returns {Promise<boolean>}
+   */
+  async reserveAi() {
+    if (this.aiToday === null || this.aiToday >= this.limits.aiPerDay) return false;
+    this.aiToday += 1;
+    await this.storage.put(`ai:${this.day}`, this.aiToday);
+    return true;
+  }
+
+  /**
+   * Count one request and say what is allowed.
+   * Past the app wide AI ceiling a request still succeeds, but without a model call.
+   * @param {string} visitor
+   * @param {boolean} wantsAi Whether this request would call the AI model.
+   * @param {boolean} [countVisit] False when the visit was already counted and only a model call is being reserved.
+   * @returns {Promise<{allowed: boolean, ai: boolean, reason: string|null, retryAfter: number}>}
+   */
+  async check(visitor, wantsAi, countVisit = true) {
+    const now = this.clock();
+    await this.rollDay(now);
+    const visit = countVisit ? this.countVisit(visitor, now) : { allowed: true, reason: null, retryAfter: 0 };
+    if (!visit.allowed) return { ...visit, ai: false };
+    return { ...visit, ai: wantsAi ? await this.reserveAi() : false };
   }
 
   /**
@@ -119,28 +139,29 @@ export class RateLimiter {
    * @returns {Promise<Response>}
    */
   async fetch(request) {
-    const { visitor, wantsAi } = await request.json();
-    const result = await this.check(String(visitor || 'unknown').slice(0, 64), wantsAi === true);
+    const { visitor, wantsAi, countVisit } = await request.json();
+    const key = String(visitor || 'unknown').slice(0, MAX_VISITOR_KEY_LENGTH);
+    const result = await this.check(key, wantsAi === true, countVisit !== false);
     return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
   }
 }
 
 /**
  * Ask the limiter from the Worker. With no binding (unit tests, local runs without it) everything is allowed.
- * If the limiter itself fails, the request is allowed but the AI call is not: fail safe for the key.
- * @param {Record<string, any>} env
+ * If the limiter itself fails, the request is allowed but the AI call is not: fail safe for the model allowance.
+ * @param {import('./types.js').Env} env
  * @param {string} visitor
- * @param {boolean} wantsAi
+ * @param {{countVisit: boolean, wantsAi: boolean}} options
  * @returns {Promise<{allowed: boolean, ai: boolean, reason: string|null, retryAfter: number}>}
  */
-export async function checkLimit(env, visitor, wantsAi) {
+export async function checkLimit(env, visitor, { countVisit, wantsAi }) {
   if (!env.LIMITER) return { allowed: true, ai: wantsAi, reason: null, retryAfter: 0 };
   try {
     const stub = env.LIMITER.get(env.LIMITER.idFromName('global'));
     const response = await stub.fetch('https://limiter.internal/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visitor, wantsAi }),
+      body: JSON.stringify({ visitor, wantsAi, countVisit }),
     });
     return await response.json();
   } catch {

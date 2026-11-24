@@ -13,13 +13,19 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc -p jsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run typecheck && npm run format:check && npm run test:coverage"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^5.1.1",
     "eslint": "^10.15.0",
     "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
     "vitest": "^5.1.1",
     "wrangler": "^4.0.0"
   }

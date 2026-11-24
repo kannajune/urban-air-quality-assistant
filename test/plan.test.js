@@ -4,13 +4,25 @@ import { SYSTEM_INSTRUCTION, buildPrompt } from '../src/lib/prompt.js';
 import { validatePlanRequest } from '../src/lib/validate.js';
 import { modelPlan, validAnswers } from './helpers.js';
 
-const air = { aqi: 312, label: 'Hazardous', pm25: 210.4, pm10: 340.1, no2: 61.2, ozone: 12, measuredAt: '2026-11-23T09:00', peak: null };
+const air = {
+  aqi: 312,
+  label: 'Hazardous',
+  pm25: 210.4,
+  pm10: 340.1,
+  no2: 61.2,
+  ozone: 12,
+  measuredAt: '2026-11-23T09:00',
+  peak: null,
+};
 
 describe('PLAN_SCHEMA', () => {
   it('is standard JSON Schema that requires all four parts and limits the tags', () => {
     expect(PLAN_SCHEMA.type).toBe('object');
     expect(PLAN_SCHEMA.required).toEqual(['summary', 'routine', 'indoor', 'alternatives']);
-    expect(PLAN_SCHEMA.properties.routine.items.properties.cost).toEqual({ type: 'string', enum: ['free', 'low', 'medium'] });
+    expect(PLAN_SCHEMA.properties.routine.items.properties.cost).toEqual({
+      type: 'string',
+      enum: ['free', 'low', 'medium'],
+    });
     expect(PLAN_SCHEMA.properties.routine.items.properties.benefit.enum).toEqual(['high', 'medium', 'low']);
   });
 });
@@ -33,7 +45,10 @@ describe('normalisePlan', () => {
   });
 
   it('replaces unknown cost and benefit tags with the middle value', () => {
-    const plan = normalisePlan({ ...modelPlan, routine: [{ title: 't', detail: 'd', impact: 'i', cost: 'gold', benefit: 9 }] });
+    const plan = normalisePlan({
+      ...modelPlan,
+      routine: [{ title: 't', detail: 'd', impact: 'i', cost: 'gold', benefit: 9 }],
+    });
     expect(plan.routine[0]).toMatchObject({ cost: 'low', benefit: 'medium' });
   });
 

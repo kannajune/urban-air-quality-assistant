@@ -15,13 +15,19 @@ function limiter(env = {}, start = Date.UTC(2026, 10, 24, 10, 0, 0)) {
 
 describe('readLimits', () => {
   it('reads limits from configuration', () => {
-    expect(readLimits({ LIMIT_VISITOR_PER_MINUTE: '3', LIMIT_VISITOR_PER_DAY: '10', LIMIT_AI_PER_DAY: '50' })).toEqual({ perMinute: 3, perDay: 10, aiPerDay: 50 });
+    expect(readLimits({ LIMIT_VISITOR_PER_MINUTE: '3', LIMIT_VISITOR_PER_DAY: '10', LIMIT_AI_PER_DAY: '50' })).toEqual({
+      perMinute: 3,
+      perDay: 10,
+      aiPerDay: 50,
+    });
   });
 
   it('falls back to the defaults for missing, zero, negative or non numeric values', () => {
     expect(readLimits({})).toEqual(DEFAULT_LIMITS);
     expect(readLimits(undefined)).toEqual(DEFAULT_LIMITS);
-    expect(readLimits({ LIMIT_VISITOR_PER_MINUTE: '0', LIMIT_VISITOR_PER_DAY: '-4', LIMIT_AI_PER_DAY: 'unlimited' })).toEqual(DEFAULT_LIMITS);
+    expect(
+      readLimits({ LIMIT_VISITOR_PER_MINUTE: '0', LIMIT_VISITOR_PER_DAY: '-4', LIMIT_AI_PER_DAY: 'unlimited' }),
+    ).toEqual(DEFAULT_LIMITS);
   });
 });
 
@@ -94,9 +100,22 @@ describe('RateLimiter', () => {
     expect(await instance.check('a', true)).toMatchObject({ allowed: true, ai: true });
   });
 
+  it('can reserve a model call without counting the visit again', async () => {
+    const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1', LIMIT_AI_PER_DAY: '1' });
+    expect((await instance.check('a', false)).allowed).toBe(true);
+    expect(await instance.check('a', true, false)).toMatchObject({ allowed: true, ai: true });
+    expect(await instance.check('a', true, false)).toMatchObject({ allowed: true, ai: false });
+  });
+
   it('answers over its fetch entry point', async () => {
     const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1' });
-    const ask = () => instance.fetch(new Request('https://limiter.internal/check', { method: 'POST', body: JSON.stringify({ visitor: 'a', wantsAi: true }) }));
+    const ask = () =>
+      instance.fetch(
+        new Request('https://limiter.internal/check', {
+          method: 'POST',
+          body: JSON.stringify({ visitor: 'a', wantsAi: true }),
+        }),
+      );
     expect(await (await ask()).json()).toMatchObject({ allowed: true, ai: true });
     expect(await (await ask()).json()).toMatchObject({ allowed: false, ai: false });
   });
@@ -104,20 +123,34 @@ describe('RateLimiter', () => {
 
 describe('checkLimit', () => {
   it('allows everything when no limiter is bound', async () => {
-    expect(await checkLimit({}, 'a', true)).toMatchObject({ allowed: true, ai: true });
+    expect(await checkLimit({}, 'a', { countVisit: true, wantsAi: true })).toMatchObject({ allowed: true, ai: true });
   });
 
   it('uses one shared limiter object and passes the visitor through', async () => {
     const { instance } = limiter({ LIMIT_VISITOR_PER_MINUTE: '1' });
     const names = [];
-    const env = { LIMITER: { idFromName: (name) => (names.push(name), name), get: () => ({ fetch: (url, init) => instance.fetch(new Request(url, init)) }) } };
-    expect((await checkLimit(env, 'a', false)).allowed).toBe(true);
-    expect((await checkLimit(env, 'a', false)).allowed).toBe(false);
+    const env = {
+      LIMITER: {
+        idFromName: (name) => (names.push(name), name),
+        get: () => ({ fetch: (url, init) => instance.fetch(new Request(url, init)) }),
+      },
+    };
+    expect((await checkLimit(env, 'a', { countVisit: true, wantsAi: false })).allowed).toBe(true);
+    expect((await checkLimit(env, 'a', { countVisit: true, wantsAi: false })).allowed).toBe(false);
     expect(names).toEqual(['global', 'global']);
   });
 
   it('fails safe for the key: if the limiter breaks, serve the request without an AI call', async () => {
-    const env = { LIMITER: { idFromName: () => 'x', get: () => ({ fetch: async () => { throw new Error('down'); } }) } };
-    expect(await checkLimit(env, 'a', true)).toMatchObject({ allowed: true, ai: false });
+    const env = {
+      LIMITER: {
+        idFromName: () => 'x',
+        get: () => ({
+          fetch: async () => {
+            throw new Error('down');
+          },
+        }),
+      },
+    };
+    expect(await checkLimit(env, 'a', { countVisit: true, wantsAi: true })).toMatchObject({ allowed: true, ai: false });
   });
 });

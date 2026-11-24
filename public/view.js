@@ -5,8 +5,13 @@
 /** WHO 2021 air quality guideline levels in µg/m³ (24 hour mean; ozone is the 8 hour mean). */
 export const WHO_GUIDELINES = Object.freeze({ pm25: 15, pm10: 45, no2: 25, ozone: 100 });
 
+/** @type {readonly {key: keyof typeof WHO_GUIDELINES, name: string, about: string}[]} */
 const POLLUTANTS = Object.freeze([
-  { key: 'pm25', name: 'PM2.5', about: 'Fine particles from smoke and exhaust. Small enough to reach the bloodstream.' },
+  {
+    key: 'pm25',
+    name: 'PM2.5',
+    about: 'Fine particles from smoke and exhaust. Small enough to reach the bloodstream.',
+  },
   { key: 'pm10', name: 'PM10', about: 'Coarse dust from roads and construction. Irritates the nose and throat.' },
   { key: 'no2', name: 'NO2', about: 'Nitrogen dioxide from traffic and gas burners. Inflames the airways.' },
   { key: 'ozone', name: 'Ozone', about: 'Forms in sunlight from other pollutants. Makes breathing feel tight.' },
@@ -22,6 +27,7 @@ const PM25_PER_CIGARETTE = 22;
  * @returns {Record<string, unknown>}
  */
 export function collectAnswers(formData, coordinates) {
+  /** @type {Record<string, unknown>} */
   const answers = {
     city: String(formData.get('city') || '').trim(),
     commute: formData.get('commute'),
@@ -54,7 +60,7 @@ export function hourOf(iso) {
  */
 export function describeHour(hour) {
   const time = hourOf(hour?.time);
-  return time ? `${time}, AQI ${hour.aqi} (${hour.label})` : 'No forecast available';
+  return hour && time ? `${time}, AQI ${hour.aqi} (${hour.label})` : 'No forecast available';
 }
 
 /**
@@ -116,8 +122,12 @@ const BENEFIT_LABELS = Object.freeze({ high: 'High impact', medium: 'Medium impa
  * @returns {{cost: string, costLabel: string, benefitLabel: string, level: number}}
  */
 export function stepTags(item) {
-  const cost = Object.hasOwn(COST_LABELS, item?.cost) ? item.cost : 'low';
-  const benefit = Object.hasOwn(BENEFIT_LEVELS, item?.benefit) ? item.benefit : 'medium';
+  const cost = /** @type {keyof typeof COST_LABELS} */ (
+    Object.hasOwn(COST_LABELS, item?.cost ?? '') ? item.cost : 'low'
+  );
+  const benefit = /** @type {keyof typeof BENEFIT_LEVELS} */ (
+    Object.hasOwn(BENEFIT_LEVELS, item?.benefit ?? '') ? item.benefit : 'medium'
+  );
   return { cost, costLabel: COST_LABELS[cost], benefitLabel: BENEFIT_LABELS[benefit], level: BENEFIT_LEVELS[benefit] };
 }
 

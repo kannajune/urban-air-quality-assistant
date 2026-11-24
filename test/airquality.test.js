@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { classifyAqi, fetchAirQuality, geocodeCity, reverseGeocode, upcomingHours, worstUpcomingHour } from '../src/lib/airquality.js';
+import {
+  classifyAqi,
+  fetchAirQuality,
+  geocodeCity,
+  reverseGeocode,
+  upcomingHours,
+  worstUpcomingHour,
+} from '../src/lib/airquality.js';
 import { airReply, fakeFetch, geocodeReply, reverseReply } from './helpers.js';
 
 describe('classifyAqi', () => {
@@ -32,7 +39,10 @@ describe('worstUpcomingHour', () => {
   });
 
   it('looks no further than 24 hours ahead', () => {
-    const time = Array.from({ length: 30 }, (_, i) => `2026-11-${String(23 + Math.floor(i / 24)).padStart(2, '0')}T${String(i % 24).padStart(2, '0')}:00`);
+    const time = Array.from(
+      { length: 30 },
+      (_, i) => `2026-11-${String(23 + Math.floor(i / 24)).padStart(2, '0')}T${String(i % 24).padStart(2, '0')}:00`,
+    );
     const us_aqi = time.map((_, i) => (i === 29 ? 900 : 100));
     expect(worstUpcomingHour({ time, us_aqi }, '2026-11-23T00:00').aqi).toBe(100);
   });
@@ -53,7 +63,10 @@ describe('upcomingHours', () => {
   });
 
   it('stops at 24 hours and skips missing readings', () => {
-    const time = Array.from({ length: 40 }, (_, i) => `2026-11-${String(23 + Math.floor(i / 24)).padStart(2, '0')}T${String(i % 24).padStart(2, '0')}:00`);
+    const time = Array.from(
+      { length: 40 },
+      (_, i) => `2026-11-${String(23 + Math.floor(i / 24)).padStart(2, '0')}T${String(i % 24).padStart(2, '0')}:00`,
+    );
     const us_aqi = time.map((_, i) => (i === 0 ? null : 80));
     const hours = upcomingHours({ time, us_aqi }, '2026-11-23T00:00');
     expect(hours).toHaveLength(24);
@@ -68,7 +81,11 @@ describe('upcomingHours', () => {
 describe('geocodeCity', () => {
   it('returns a readable place name and coordinates', async () => {
     const fetchImpl = fakeFetch({ 'geocoding-api': { body: geocodeReply } });
-    expect(await geocodeCity('Delhi', fetchImpl)).toEqual({ name: 'Delhi, Delhi, India', latitude: 28.65, longitude: 77.23 });
+    expect(await geocodeCity('Delhi', fetchImpl)).toEqual({
+      name: 'Delhi, Delhi, India',
+      latitude: 28.65,
+      longitude: 77.23,
+    });
   });
 
   it('url encodes the city name', async () => {
@@ -97,7 +114,9 @@ describe('reverseGeocode', () => {
   });
 
   it('does not repeat a name and strips markup', async () => {
-    const fetchImpl = fakeFetch({ nominatim: { body: { address: { town: 'Ooty', state: '<b>Tamil Nadu</b>', country: 'India' } } } });
+    const fetchImpl = fakeFetch({
+      nominatim: { body: { address: { town: 'Ooty', state: '<b>Tamil Nadu</b>', country: 'India' } } },
+    });
     expect(await reverseGeocode(11.41, 76.7, fetchImpl)).toBe('Ooty,  b Tamil Nadu /b , India');
   });
 

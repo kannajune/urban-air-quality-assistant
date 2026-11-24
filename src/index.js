@@ -3,6 +3,10 @@ import { validateCoordinates, validatePlanRequest } from './lib/validate.js';
 import { fetchAirQuality, geocodeCity, reverseGeocode } from './lib/airquality.js';
 import { buildPrompt, generatePlan } from './lib/gemini.js';
 import { buildFallbackPlan } from './lib/fallback.js';
+import { RateLimiter, checkLimit } from './lib/limiter.js';
+
+// The Durable Object class must be exported from the Worker entry module.
+export { RateLimiter };
 
 /**
  * Apply one rate limit binding. Missing bindings (local tests) are treated as open.
@@ -17,15 +21,30 @@ async function allowed(limiter, key) {
 }
 
 /**
- * Apply both ceilings. Returns a 429 response when either is exceeded, otherwise null.
+ * Apply the limits in two layers: the cheap approximate edge limiter first, then the exact counter.
+ * Returns a 429 response when a limit is hit, otherwise whether an AI call is allowed.
  * @param {Request} request
  * @param {Record<string, any>} env
- * @returns {Promise<Response|null>}
+ * @param {boolean} wantsAi
+ * @returns {Promise<{blocked: Response|null, ai: boolean}>}
  */
-async function rateLimited(request, env) {
+async function applyLimits(request, env, wantsAi) {
   const visitor = request.headers.get('CF-Connecting-IP') || 'unknown';
-  if ((await allowed(env.VISITOR_LIMIT, visitor)) && (await allowed(env.APP_LIMIT, 'all'))) return null;
-  return json({ error: 'Too many requests. Wait a minute and try again.' }, 429, { 'Retry-After': '60' });
+  const tooMany = (retryAfter, message) => ({
+    blocked: json({ error: message }, 429, { 'Retry-After': String(retryAfter) }),
+    ai: false,
+  });
+  if (!(await allowed(env.VISITOR_LIMIT, visitor)) || !(await allowed(env.APP_LIMIT, 'all'))) {
+    return tooMany(60, 'The service is busy right now. Please try again in a minute.');
+  }
+  const verdict = await checkLimit(env, visitor, wantsAi);
+  if (!verdict.allowed) {
+    const seconds = Math.max(1, Math.round(verdict.retryAfter));
+    return verdict.reason === 'day'
+      ? tooMany(seconds, 'You have reached the limit of plans for today. Please come back tomorrow.')
+      : tooMany(seconds, `You are going a little fast. Please try again in ${seconds} seconds.`);
+  }
+  return { blocked: null, ai: verdict.ai };
 }
 
 /**
@@ -35,8 +54,8 @@ async function rateLimited(request, env) {
  * @returns {Promise<Response>}
  */
 export async function handlePlace(request, env) {
-  const limited = await rateLimited(request, env);
-  if (limited) return limited;
+  const { blocked } = await applyLimits(request, env, false);
+  if (blocked) return blocked;
   const { latitude, longitude } = validateCoordinates(await readJsonBody(request, 512));
   const name = await reverseGeocode(latitude, longitude, env.fetchImpl || fetch);
   return json({ place: name, latitude, longitude });
@@ -49,8 +68,8 @@ export async function handlePlace(request, env) {
  * @returns {Promise<Response>}
  */
 export async function handlePlan(request, env) {
-  const limited = await rateLimited(request, env);
-  if (limited) return limited;
+  const { blocked, ai: aiAllowed } = await applyLimits(request, env, Boolean(env.GEMINI_API_KEY));
+  if (blocked) return blocked;
 
   const answers = validatePlanRequest(await readJsonBody(request));
   const fetchImpl = env.fetchImpl || fetch;
@@ -64,10 +83,10 @@ export async function handlePlan(request, env) {
   }
 
   const air = await fetchAirQuality(place.latitude, place.longitude, fetchImpl);
-  const ai = await generatePlan(
-    { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, fetchImpl },
-    buildPrompt(answers, place.name, air),
-  );
+  // Past the app wide daily ceiling the plan is still served, from the built in rules.
+  const ai = aiAllowed
+    ? await generatePlan({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, fetchImpl }, buildPrompt(answers, place.name, air))
+    : null;
 
   return json({
     place: place.name,

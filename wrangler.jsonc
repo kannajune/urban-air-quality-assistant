@@ -11,10 +11,14 @@
   },
   "vars": {
     // Models to try, most preferred first. Configuration, not a secret, so it changes without a code edit.
-    "GEMINI_MODEL": "gemini-3.5-flash,gemini-flash-latest,gemini-3.5-flash-lite"
+    "GEMINI_MODEL": "gemini-3.5-flash,gemini-flash-latest,gemini-3.5-flash-lite",
+    // Exact limits enforced by the RateLimiter Durable Object.
+    "LIMIT_VISITOR_PER_MINUTE": "5",
+    "LIMIT_VISITOR_PER_DAY": "40",
+    "LIMIT_AI_PER_DAY": "200"
   },
-  // Two ceilings on the paid path: one per visitor, one for the whole app.
-  // The Gemini key itself is the third ceiling (free tier quota at the provider).
+  // First layer: Cloudflare's approximate edge limiter, which sheds heavy bursts cheaply.
+  // The exact limits are enforced by the RateLimiter Durable Object below.
   "ratelimits": [
     {
       "name": "VISITOR_LIMIT",
@@ -27,6 +31,11 @@
       "simple": { "limit": 40, "period": 60 }
     }
   ],
+  // Exact counter behind the edge limiter: per visitor per minute and per day, and a whole app daily ceiling on AI calls.
+  "durable_objects": {
+    "bindings": [{ "name": "LIMITER", "class_name": "RateLimiter" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }],
   "observability": {
     "enabled": true
   }

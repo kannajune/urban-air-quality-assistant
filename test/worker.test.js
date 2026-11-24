@@ -170,6 +170,41 @@ describe('POST /api/place', () => {
   });
 });
 
+describe('exact limits from the limiter object', () => {
+  const limiterReturning = (verdict) => ({ idFromName: () => 'global', get: () => ({ fetch: async () => new Response(JSON.stringify(verdict)) }) });
+
+  it('blocks with 429 and a Retry-After header when the visitor is over the minute limit', async () => {
+    const LIMITER = limiterReturning({ allowed: false, ai: false, reason: 'minute', retryAfter: 37 });
+    const testEnv = env({ LIMITER });
+    const response = await worker.fetch(planRequest(validAnswers), testEnv);
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBe('37');
+    expect((await response.json()).error).toBe('You are going a little fast. Please try again in 37 seconds.');
+    expect(testEnv.fetchImpl.calls).toHaveLength(0);
+  });
+
+  it('gives a clear message when the daily limit is reached', async () => {
+    const LIMITER = limiterReturning({ allowed: false, ai: false, reason: 'day', retryAfter: 3600 });
+    const response = await worker.fetch(planRequest(validAnswers), env({ LIMITER }));
+    expect(response.status).toBe(429);
+    expect((await response.json()).error).toContain('tomorrow');
+  });
+
+  it('serves the standard plan without calling Gemini once the app wide AI ceiling is reached', async () => {
+    const LIMITER = limiterReturning({ allowed: true, ai: false, reason: null, retryAfter: 0 });
+    const testEnv = env({ LIMITER });
+    const response = await worker.fetch(planRequest(validAnswers), testEnv);
+    expect(response.status).toBe(200);
+    expect((await response.json()).source).toBe('fallback');
+    expect(testEnv.fetchImpl.calls.some((call) => call.url.includes('generativelanguage'))).toBe(false);
+  });
+
+  it('calls Gemini when the limiter allows it', async () => {
+    const LIMITER = limiterReturning({ allowed: true, ai: true, reason: null, retryAfter: 0 });
+    expect((await (await worker.fetch(planRequest(validAnswers), env({ LIMITER }))).json()).source).toBe('gemini');
+  });
+});
+
 describe('rate limits', () => {
   const limiter = (success) => ({ limit: vi.fn(async () => ({ success })) });
 

@@ -37,7 +37,7 @@ Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air
 - User answers go to the model as JSON data, and the system instruction tells the model to treat them as data only.
 - Model output is treated as untrusted: it is schema checked, length capped and stripped of markup, and the page renders it with text nodes only.
 - Strict Content Security Policy, no inline scripts or styles, no third party scripts, no cookies, no tracking.
-- Two rate limits protect the paid path: one per visitor and one for the whole app. The provider quota on the key is the third ceiling.
+- Limits come in two layers. Cloudflare's edge rate limiter sheds heavy bursts, and a Durable Object keeps exact counts: per visitor per minute, per visitor per day, and a whole app daily ceiling on AI calls. Past that ceiling the app still answers, from its built in rules, so the model key cannot be drained. Visitor addresses are counted in memory only and never stored.
 - Request bodies are capped at 4 KB and every upstream call has a timeout.
 - Coordinates are rounded to about one kilometre before they leave the Worker, and nothing is stored.
 
@@ -65,7 +65,7 @@ Open http://localhost:8787. Without a key the app still runs and serves the stan
 ## Test
 
 ```bash
-npm test             # 155 unit and integration tests, no network needed
+npm test             # 173 unit and integration tests, no network needed
 npm run test:coverage
 npm run lint
 ```
@@ -85,7 +85,7 @@ npm run deploy
 ```
 public/        Static front end (HTML, CSS, ES modules)
 src/index.js   Worker entry: routing, rate limits, error handling
-src/lib/       Validation, air quality client, Gemini client, fallback plan, HTTP helpers
+src/lib/       Validation, air quality client, Gemini client, fallback plan, rate limiter, HTTP helpers
 test/          Vitest suites
 ```
 

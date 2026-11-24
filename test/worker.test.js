@@ -170,6 +170,47 @@ describe('POST /api/place', () => {
   });
 });
 
+describe('keyless backup model', () => {
+  const AI = (reply) => ({ run: vi.fn(async () => reply) });
+  const noGemini = () =>
+    fakeFetch({ 'geocoding-api': { body: geocodeReply }, 'air-quality-api': { body: airReply }, generativelanguage: { status: 503 } });
+
+  it('writes the plan with the open model when no Gemini key is set', async () => {
+    const ai = AI({ response: JSON.stringify(modelPlan) });
+    const data = await (await worker.fetch(planRequest(validAnswers), env({ GEMINI_API_KEY: undefined, AI: ai }))).json();
+    expect(data.source).toBe('workers-ai');
+    expect(data.model).toBe('@cf/google/gemma-4-26b-a4b-it');
+    expect(data.plan).toEqual(modelPlan);
+  });
+
+  it('steps in when Gemini is busy', async () => {
+    const ai = AI({ response: JSON.stringify(modelPlan) });
+    const data = await (await worker.fetch(planRequest(validAnswers), env({ fetchImpl: noGemini(), AI: ai }))).json();
+    expect(data.source).toBe('workers-ai');
+  });
+
+  it('is not called when Gemini answers', async () => {
+    const ai = AI({ response: JSON.stringify(modelPlan) });
+    const data = await (await worker.fetch(planRequest(validAnswers), env({ AI: ai }))).json();
+    expect(data.source).toBe('gemini');
+    expect(ai.run).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the standard plan when both models fail', async () => {
+    const ai = { run: vi.fn(async () => { throw new Error('quota'); }) };
+    const data = await (await worker.fetch(planRequest(validAnswers), env({ fetchImpl: noGemini(), AI: ai }))).json();
+    expect(data.source).toBe('fallback');
+  });
+
+  it('is not called once the app wide AI ceiling is reached', async () => {
+    const ai = AI({ response: JSON.stringify(modelPlan) });
+    const LIMITER = { idFromName: () => 'global', get: () => ({ fetch: async () => new Response(JSON.stringify({ allowed: true, ai: false, reason: null, retryAfter: 0 })) }) };
+    const data = await (await worker.fetch(planRequest(validAnswers), env({ GEMINI_API_KEY: undefined, AI: ai, LIMITER }))).json();
+    expect(data.source).toBe('fallback');
+    expect(ai.run).not.toHaveBeenCalled();
+  });
+});
+
 describe('exact limits from the limiter object', () => {
   const limiterReturning = (verdict) => ({ idFromName: () => 'global', get: () => ({ fetch: async () => new Response(JSON.stringify(verdict)) }) });
 

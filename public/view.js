@@ -161,7 +161,9 @@ export function countUpValue(target, progress) {
  * @returns {string}
  */
 export function sourceNote(source) {
-  return source === 'gemini'
-    ? 'Plan written by Google Gemini from the live readings and your answers.'
-    : 'The AI model is busy, so this is the standard plan for these readings. Try again in a minute for a tailored one.';
+  if (source === 'gemini') return 'Plan written by Google Gemini from the live readings and your answers.';
+  if (source === 'workers-ai') {
+    return 'Plan written by Google Gemma, an open model running on Cloudflare Workers AI, from the live readings and your answers.';
+  }
+  return 'The AI models are busy, so this is the standard plan for these readings. Try again in a minute for a tailored one.';
 }

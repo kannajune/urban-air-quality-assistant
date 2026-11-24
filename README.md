@@ -15,19 +15,21 @@ Built for PromptWars Virtual, Challenge 6.
 ```
 Browser (public/)  ->  Cloudflare Worker (src/)  ->  Open-Meteo (geocoding + air quality)
                                                  ->  OpenStreetMap Nominatim (place name for a shared location)
-                                                 ->  Google Gemini (structured plan)
+                                                 ->  Google Gemini (structured plan, when a key is set)
+                                                 ->  Google Gemma on Cloudflare Workers AI (keyless backup)
 ```
 
 1. The browser sends the city (or rounded coordinates) and the household answers to `POST /api/plan`.
 2. The Worker validates every field against an allow list, then fetches live US AQI, PM2.5, PM10, NO2, ozone and the 24 hour forecast from Open-Meteo.
 3. The Worker sends the readings and answers to Gemini as JSON data with a response schema, so the reply is structured.
-4. The reply is validated and trimmed before it reaches the browser. If a model is busy the Worker tries the next one in its list, and if none answers a rule based plan is returned and labelled as such.
+4. The reply is validated and trimmed before it reaches the browser. If a Gemini model is busy the Worker tries the next one in its list, then the keyless Gemma model, and if none answers a rule based plan is returned and labelled as such.
 
 ## Where Gen AI is used
 
 | Where | What |
 |---|---|
 | `src/lib/gemini.js` | Google Gemini (`generateContent` with a JSON response schema) writes the tailored plan from live readings and household answers |
+| `src/lib/workersai.js` | Google Gemma 4, an open model on Cloudflare Workers AI, writes the plan when no Gemini key is set or Gemini is busy. It needs no API key |
 | Build | The project was built with an AI coding assistant |
 
 ## Security
@@ -60,12 +62,12 @@ cp .dev.vars.example .dev.vars   # then put your Gemini key in .dev.vars
 npm run dev
 ```
 
-Open http://localhost:8787. Without a key the app still runs and serves the standard plan.
+Open http://localhost:8787. Without a Gemini key the app still runs: plans come from Gemma on Workers AI, or from the standard rules if that is unavailable.
 
 ## Test
 
 ```bash
-npm test             # 173 unit and integration tests, no network needed
+npm test             # 196 unit and integration tests, no network needed
 npm run test:coverage
 npm run lint
 ```
@@ -85,7 +87,7 @@ npm run deploy
 ```
 public/        Static front end (HTML, CSS, ES modules)
 src/index.js   Worker entry: routing, rate limits, error handling
-src/lib/       Validation, air quality client, Gemini client, fallback plan, rate limiter, HTTP helpers
+src/lib/       Validation, air quality client, Gemini and Workers AI clients, fallback plan, rate limiter, HTTP helpers
 test/          Vitest suites
 ```
 

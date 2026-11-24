@@ -4,6 +4,7 @@ import { fetchAirQuality, geocodeCity, reverseGeocode } from './lib/airquality.j
 import { buildPrompt, generatePlan } from './lib/gemini.js';
 import { buildFallbackPlan } from './lib/fallback.js';
 import { RateLimiter, checkLimit } from './lib/limiter.js';
+import { generateWithWorkersAi } from './lib/workersai.js';
 
 // The Durable Object class must be exported from the Worker entry module.
 export { RateLimiter };
@@ -68,7 +69,7 @@ export async function handlePlace(request, env) {
  * @returns {Promise<Response>}
  */
 export async function handlePlan(request, env) {
-  const { blocked, ai: aiAllowed } = await applyLimits(request, env, Boolean(env.GEMINI_API_KEY));
+  const { blocked, ai: aiAllowed } = await applyLimits(request, env, Boolean(env.GEMINI_API_KEY || env.AI));
   if (blocked) return blocked;
 
   const answers = validatePlanRequest(await readJsonBody(request));
@@ -83,17 +84,26 @@ export async function handlePlan(request, env) {
   }
 
   const air = await fetchAirQuality(place.latitude, place.longitude, fetchImpl);
-  // Past the app wide daily ceiling the plan is still served, from the built in rules.
-  const ai = aiAllowed
-    ? await generatePlan({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, fetchImpl }, buildPrompt(answers, place.name, air))
-    : null;
+  // Model chain: Gemini when a key is set, then the keyless open model, then the built in rules.
+  // Past the app wide daily ceiling no model is called at all.
+  let written = null;
+  if (aiAllowed) {
+    const prompt = buildPrompt(answers, place.name, air);
+    const gemini = await generatePlan({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, fetchImpl }, prompt);
+    if (gemini) {
+      written = { ...gemini, source: 'gemini' };
+    } else {
+      const open = await generateWithWorkersAi(env.AI, env.WORKERS_AI_MODEL, prompt);
+      if (open) written = { ...open, source: 'workers-ai' };
+    }
+  }
 
   return json({
     place: place.name,
     air,
-    plan: ai ? ai.plan : buildFallbackPlan(answers, air, place.name),
-    source: ai ? 'gemini' : 'fallback',
-    model: ai ? ai.model : null,
+    plan: written ? written.plan : buildFallbackPlan(answers, air, place.name),
+    source: written ? written.source : 'fallback',
+    model: written ? written.model : null,
   });
 }
 

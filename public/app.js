@@ -293,7 +293,7 @@ form.addEventListener('submit', async (event) => {
   setCityError('');
   submitButton.disabled = true;
   submitButton.setAttribute('aria-busy', 'true');
-  setStatus('Reading the air and building your plan. This can take a few seconds.');
+  setStatus('Reading the air and writing your plan. This can take up to half a minute.');
 
   try {
     const response = await fetch('/api/plan', {

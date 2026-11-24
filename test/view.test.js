@@ -194,6 +194,7 @@ describe('countUpValue', () => {
 describe('sourceNote', () => {
   it('names the AI model for a generated plan and explains the fallback', () => {
     expect(sourceNote('gemini')).toContain('Google Gemini');
+    expect(sourceNote('workers-ai')).toContain('Google Gemma');
     expect(sourceNote('fallback')).toContain('standard plan');
   });
 });
